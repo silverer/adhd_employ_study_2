@@ -1,0 +1,262 @@
+---
+title: "ADHD Study 2 Power Analysis"
+author: "Elisabeth R Silver"
+date: '2022-06-07'
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(pacman)
+p_load(tidyverse, stats, rstatix, MASS,effects,Superpower)
+set.seed(1234)
+filter <- dplyr::filter
+select <- dplyr::select
+```
+
+## Setting Parameters
+
+To estimate the correlation between work-specific and general frame of reference (FOR) Conscientiousness scores within-subjects, I used _r_ = .49 as reported by Lievens et al. (2008). I used the same within-subjects correlation for ADHD and non-ADHD participants.
+
+For the general FOR items, I used the results from Study 1 to estimate the mean and standard deviation (SD) for the ADHD (M = 3.27, SD = 0.53) and non-ADHD (M = 3.74, SD = 0.55) groups, Cohen's _d_ = 0.87.
+
+I used Cohen's _d_ = 0.797 for the difference between general and work-specific items among non-ADHD participants (Lievens et al., 2008).
+
+I tested a range of effect sizes for group mean differences by ADHD status in the work-specific FOR. I estimated that the effect of ADHD on group mean differences on the work-specific items would be half the difference that was found on general items in Study 1 (i.e. estimated _d_ = 0.87/2 = 0.435). Here, we're assuming no effect of presentation order.
+
+
+```{r}
+nadhd.mean.general <- 3.74
+nadhd.sd.general <- .55
+nadhd.sd.work <- .45
+r.val <- .49
+nadhd.mean.work.denom <- sqrt(((nadhd.sd.general^2)+(nadhd.sd.work^2))-(2*r.val*(nadhd.sd.general)*(nadhd.sd.work)))
+cod.nadhd.work.general <- .797
+nadhd.mean.work.ls <- cod.nadhd.work.general*nadhd.mean.work.denom
+nadhd.mean.work <- nadhd.mean.work.ls + nadhd.mean.general
+
+adhd.sd.work <- .43
+nadhd.n <- 140 #conservative n of 140
+adhd.n <- 140
+comp.denom <- sqrt((((nadhd.n-1)*nadhd.sd.work^2) + ((adhd.n-1)*adhd.sd.work^2))/(nadhd.n+adhd.n-2))
+cod.adhd.nadhd.work <- .435
+comp.ls <- cod.adhd.nadhd.work*comp.denom
+adhd.mean.work <- nadhd.mean.work-comp.ls
+
+adhd.mean.general <- 3.27
+adhd.sd.general <- .53
+```
+
+Below, the power analysis suggests that 280 participants (140 with ADHD and 140 without ADHD) will result in over 80% power for the effects of ADHD, FOR, and their interaction with an alpha level of .05. 
+
+```{r}
+m <- c(adhd.mean.work, adhd.mean.general,
+       adhd.mean.work, adhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general) # means
+
+sd <- c(adhd.sd.work, adhd.sd.general,
+        adhd.sd.work, adhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general)
+
+design_result <- ANOVA_design(design = "2b*2b*2w",
+                              n = 70, #conservative n, 140 in both ADHD and non-ADHD groups for 280 total participants
+                              mu = m,
+                              sd = sd,
+                              r <- r.val,
+                              label_list = list(adhd = c("adhd", "nonadhd"),
+                                                presentation = c("work.first", "general.first"),
+                                                frame = c("work", "general")
+                              ))
+
+ANOVA_exact(design_result,verbose=F,alpha_level = .05)
+```
+
+If the difference in the effect of ADHD on scores in the work-specific vs. general items is smaller (i.e., a Cohen's _d_ closer to that observed in the general FOR items, or _d_ > 0.435 when comparing ADHD vs. non-ADHD in the work-specific items), how many participants are needed?
+
+For this sensitivity analysis, I'll use Cohen's _d_ = 0.87*0.75 = 0.65.
+
+As shown below, this still results in over 80% power with 140 subjects and alpha = .05. 
+
+```{r}
+nadhd.mean.general <- 3.74
+nadhd.sd.general <- .55
+nadhd.sd.work <- .45
+r.val <- .49
+nadhd.mean.work.denom <- sqrt(((nadhd.sd.general^2)+(nadhd.sd.work^2))-(2*r.val*(nadhd.sd.general)*(nadhd.sd.work)))
+cod.nadhd.work.general <- .797
+nadhd.mean.work.ls <- cod.nadhd.work.general*nadhd.mean.work.denom
+nadhd.mean.work <- nadhd.mean.work.ls + nadhd.mean.general
+
+adhd.sd.work <- .43
+nadhd.n <- 140 #conservative n of 140 in each group
+adhd.n <- 140
+comp.denom <- sqrt((((nadhd.n-1)*nadhd.sd.work^2) + ((adhd.n-1)*adhd.sd.work^2))/(nadhd.n+adhd.n-2))
+cod.adhd.nadhd.work <- 0.65
+comp.ls <- cod.adhd.nadhd.work*comp.denom
+adhd.mean.work <- nadhd.mean.work-comp.ls
+
+adhd.mean.general <- 3.27
+adhd.sd.general <- .53
+
+m <- c(adhd.mean.work, adhd.mean.general,
+       adhd.mean.work, adhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general) # means
+
+sd <- c(adhd.sd.work, adhd.sd.general,
+        adhd.sd.work, adhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general)
+
+design_result <- ANOVA_design(design = "2b*2b*2w",
+                              n = 70, #conservative n, 140 in both ADHD and non-ADHD groups for 280 total participants
+                              mu = m,
+                              sd = sd,
+                              r <- r.val,
+                              label_list = list(adhd = c("adhd", "nonadhd"),
+                                                presentation = c("work.first", "general.first"),
+                                                frame = c("work", "general")
+                              ))
+
+ANOVA_exact(design_result,verbose=F,alpha_level = .05)
+```
+
+Assuming a conservative effect size with a smaller sample size (n = 120 ADHD, n = 120 non-ADHD):
+
+```{r}
+nadhd.mean.general <- 3.74
+nadhd.sd.general <- .55
+nadhd.sd.work <- .45
+r.val <- .49
+nadhd.mean.work.denom <- sqrt(((nadhd.sd.general^2)+(nadhd.sd.work^2))-(2*r.val*(nadhd.sd.general)*(nadhd.sd.work)))
+cod.nadhd.work.general <- .797
+nadhd.mean.work.ls <- cod.nadhd.work.general*nadhd.mean.work.denom
+nadhd.mean.work <- nadhd.mean.work.ls + nadhd.mean.general
+
+adhd.sd.work <- .43
+nadhd.n <- 120 #conservative n of 120 in each group
+adhd.n <- 120
+comp.denom <- sqrt((((nadhd.n-1)*nadhd.sd.work^2) + ((adhd.n-1)*adhd.sd.work^2))/(nadhd.n+adhd.n-2))
+cod.adhd.nadhd.work <- 0.65
+comp.ls <- cod.adhd.nadhd.work*comp.denom
+adhd.mean.work <- nadhd.mean.work-comp.ls
+
+adhd.mean.general <- 3.27
+adhd.sd.general <- .53
+
+m <- c(adhd.mean.work, adhd.mean.general,
+       adhd.mean.work, adhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general) # means
+
+sd <- c(adhd.sd.work, adhd.sd.general,
+        adhd.sd.work, adhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general)
+
+design_result <- ANOVA_design(design = "2b*2b*2w",
+                              n = 60, #conservative n, 140 in both ADHD and non-ADHD groups for 280 total participants
+                              mu = m,
+                              sd = sd,
+                              r <- r.val,
+                              label_list = list(adhd = c("adhd", "nonadhd"),
+                                                presentation = c("work.first", "general.first"),
+                                                frame = c("work", "general")
+                              ))
+
+ANOVA_exact(design_result,verbose=F,alpha_level = .05)
+```
+
+# Simulate Data for Test Analysis
+
+```{r, results="asis"}
+n <- rep(70, 8)
+
+m <- c(adhd.mean.work, adhd.mean.general,
+       adhd.mean.work, adhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general,
+       nadhd.mean.work, nadhd.mean.general) # means
+
+sd <- c(adhd.sd.work, adhd.sd.general,
+        adhd.sd.work, adhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general,
+        nadhd.sd.work, nadhd.sd.general)
+
+dp <- cbind(n,m,sd) # create rows of n/m/SD
+df <- apply(dp, 1, function(x) rnorm(x[1],x[2],x[3])) # generate data based on each row of dp
+df <- data.frame(df)
+colnames(df) <- c("adhd.work.wf", "adhd.general.wf", 
+               "adhd.work.gf", "adhd.general.gf",
+               "nadhd.work.wf", "nadhd.general.wf", 
+               "nadhd.work.gf", "nadhd.general.gf")
+consc.df <- stack(df) %>%
+  mutate(adhd = factor(if_else(str_starts(ind, "nadhd"), "NO ADHD", "ADHD"),
+                       levels = c("NO ADHD", "ADHD")),
+         presentation = factor(if_else(str_detect(ind,"gf"), "general.first", "work.first"),
+                               levels = c("general.first", "work.first")),
+         frame = factor(if_else(str_detect(ind, "work"), "work.scores", "general.scores"),
+                        levels = c("general.scores", "work.scores"))) %>% 
+  group_by(frame) %>% 
+  mutate(pnum = 1:(sum(n)/2))%>% 
+  arrange(pnum) %>% 
+  ungroup()
+
+cod.tmp <- consc.df %>% 
+  filter(frame=="general.scores") %>% 
+  cohens_d(values~adhd)
+cat(paste0("Effect of ADHD on general scores: ", scales::number(cod.tmp$effsize[1], accuracy = .01)))
+cat("  \n")
+
+cod.tmp<- consc.df %>% 
+  filter(frame=="work.scores") %>% 
+  cohens_d(values~adhd)
+cat(paste0("Effect of ADHD on work scores: ", scales::number(cod.tmp$effsize[1], accuracy = .01)))
+cat("  \n")
+
+cod.tmp <- consc.df %>% 
+  dplyr::filter(adhd=="ADHD") %>%
+  cohens_d(values ~ frame, paired = T)
+cat(paste0("Effect FOR on ADHD participants' scores: ", scales::number(cod.tmp$effsize[1], accuracy = .01)))
+cat("  \n")
+
+cod.tmp <- consc.df %>% 
+  dplyr::filter(adhd=="NO ADHD") %>%
+  cohens_d(values ~ frame, paired = T)
+cat(paste0("Effect FOR on non-ADHD participants' scores: ", scales::number(cod.tmp$effsize[1], accuracy = .01)))
+cat("  \n")
+
+```
+
+
+Run the ANOVA:
+
+```{r}
+p_load(afex,lsmeans)
+
+
+model <- aov_ez(consc.df,                           
+                id="pnum",                     
+                dv="values",                         
+                within="frame",
+                between = c("adhd","presentation"))
+summary(model)
+
+#no effect of presentation order--drop the factor
+model <- aov_ez(consc.df,                           
+                id="pnum",                     
+                dv="values",                         
+                within="frame",
+                between = c("adhd"))
+summary(model)
+```
+
+
+

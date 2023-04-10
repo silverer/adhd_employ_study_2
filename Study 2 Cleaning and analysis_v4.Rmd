@@ -1,0 +1,1377 @@
+---
+title: "Big Five Employment Measures and ADHD"
+author: "Elisabeth R Silver"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+      reference_doc: "style-ref.docx"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(pacman)
+p_load(knitr,tidyverse,rstatix,psych,scales,Hmisc,
+       statstring,openxlsx,cowplot,afex,lsmeans,flextable,
+       lavaan, semTools, finalfit, ggpubr,
+       sjstats, lmerTest,cocor)
+filter <- dplyr::filter
+select <- dplyr::select
+output <- "output/"
+```
+
+## Read in and clean data
+
+```{r}
+#read variable recode spreadsheet ----
+#this just makes cleaning/tidy selecting variables a bit easier for me
+vars <- read.csv("data/variable_recode.csv")
+###read in data ----
+og.df <- read.csv("data/survey_data.csv")
+og.df <- og.df[3:nrow(og.df),]
+
+all_facets <- c(vars$facet[!is.na(vars$facet)], str_c("W", vars$facet[!is.na(vars$facet)]))
+all_facets <- all_facets[!duplicated(all_facets)]
+#note which variables should be reverse-scored (indicated by "rev_score"==1)
+facet_items <- vars %>% 
+  filter(!is.na(facet)) %>% 
+  mutate(
+    new_varname = if_else(rev_score==1, str_c("R_", og_varname),
+                          og_varname),
+    facet = if_else(str_starts(og_varname, "WC"), str_c("W", facet), facet),
+    facet_name = if_else(str_starts(og_varname, "WC"), 
+                         str_c("work ", facet_name), 
+                         facet_name)
+  )
+
+
+rev_score_items <- facet_items %>%
+  filter(rev_score==1)
+pj_items <- vars %>% 
+  filter(str_starts(og_varname, "pj")) %>% 
+  mutate(new_varname = if_else(rev_score==1, str_c("R_", og_varname),
+                        og_varname))
+rev_score_pj <- pj_items %>% 
+  filter(rev_score==1)
+#reverse-score the relevant items
+og.df <- og.df %>% 
+  mutate(
+    display_order_f = factor(if_else(display_order==0,"gen.first", "work.first")),
+    across(starts_with("C", ignore.case=F),
+           ~as.numeric(str_extract(.x, "\\d"))),
+    across(starts_with("W", ignore.case=F),
+           ~as.numeric(str_extract(.x, "\\d"))) #change strings to numeric
+  ) %>% 
+  mutate(across(all_of(rev_score_items$og_varname),
+                ~6-.x,
+                .names = "R_{.col}")) %>% 
+  mutate(
+    across(starts_with("pj_f"),
+                  ~as.numeric(str_extract(.x, "\\d"))
+    )
+  ) %>% 
+  mutate(
+    across(all_of(rev_score_pj$og_varname),
+           ~8-.x,
+           .names = "R_{.col}"))
+  
+
+#make sure reverse-scoring worked as expected:
+# with(og.df, table(R_C2_2,C2_2))
+# with(og.df, table(R_pj_fit_1,pj_fit_1))
+#exclude this person with very low effort responses: 61117e8d9c4878fdd4551e02
+
+df <- og.df %>% 
+  filter(PROLIFIC_PID!="") %>% 
+  filter(Finished=="True") 
+
+adhd_study <- "62d1d54416d56743e1c78b6a"
+nadhd_study <- "62d5864d74bdbb25cb33ca37"
+df["study"] <- ifelse(df$STUDY_ID==adhd_study,
+                      "adhd.recruit", "noadhd.recruit")
+
+#make sure people who failed both attention checks are excluded
+df <- df %>% 
+  mutate(attn_na = if_else((gen_context_aff==""&work_context_aff==""),
+                           T, F))
+tmp <- df %>% filter(attn_na)
+
+df <- df %>% 
+  filter(gen_context_aff == "In general") %>% 
+  filter(work_context_aff == "At work")
+
+dup_ip <- df %>% 
+  count(IPAddress) %>% 
+  filter(n > 1)
+write.csv(df, "data/clean_survey_data.csv") #export data to look at responses
+```
+
+
+```{r}
+
+df <- df %>% 
+  mutate(across(ends_with("Click.Count"),
+                ~as.numeric(.x)))
+consc.gen <- facet_items %>% filter(str_starts(facet, "C"))
+df["c.num.answers"] <- rowSums(!is.na(df[,consc.gen$new_varname]))
+consc.work <- facet_items %>% filter(str_starts(facet, "WC"))
+df["w.num.answers"] <- rowSums(!is.na(df[,consc.work$new_varname]))
+
+```
+
+
+```{r,results="asis"}
+cat(paste0("We recruited ", nrow(df), " participants from an online subject pool (Prolific). "))
+asrs_recode <- list(Never = 1,
+                    Often = 2,
+                    Rarely = 3,
+                    Sometimes = 4,
+                    `Very Often` = 5)
+n_noadhd <- df %>% 
+  filter((adhd_yn == "Prefer not to say"|adhd_yn == ""))
+
+null_incl <- df %>% 
+  filter(age =="")
+
+df <- df%>% 
+  filter(PROLIFIC_PID != "61117e8d9c4878fdd4551e02")
+
+cat(paste0("We excluded ", 
+           nrow(n_noadhd), 
+           " participant that preferred not to self-identify their ADHD status, ",
+           nrow(null_incl),
+           " participants that did not provide an age, and 1 participant who provided very low-effort responses.",
+           "  \n"))
+
+df <- df %>% 
+  filter(adhd_yn != "Prefer not to say") %>% 
+  filter(adhd_yn != "") %>% 
+  filter(age != "")
+
+df <- df %>% 
+  mutate(
+    across(starts_with("asrs_"),
+           ~recode(.x, !!!asrs_recode),
+           .names = "{.col}_rc")
+  )
+#rename to work with calculate_adhd_scores.R
+df <- df %>% 
+  rename_with(~str_remove(str_replace(.x, "asrs", "attn"),"_rc"),
+              .cols=(starts_with("asrs")&ends_with("rc")))
+source("calculate_adhd_scores.R")
+df <- get_adhd_sums(df)
+
+asrs_cols <- colnames(df %>% 
+                        select(starts_with("attn")) %>% 
+                        select(-attn_na))
+df["na.asrs"] <- rowSums(is.na(df[,asrs_cols]))
+no_screener <- df %>% filter(na.asrs>0)
+cat(paste0(" An additional ", nrow(no_screener), " participant was excluded for failing to answer all of the symptom severity items"))
+df <- df %>% filter(na.asrs==0)
+# df["race_recode"] <- ifelse(
+#   str_detect(df$race, ","), "multiracial",df$race
+# )
+df["race_recode"] <- df$race
+
+df["race_recode"] <- ifelse(df$race_7_TEXT=="Aboriginal",
+                            "Native Hawaiian Native Alaskan Native American or Aboriginal",
+                            df$race_recode)
+df$race_recode <- str_replace_all(df$race_recode,
+                              "(American Indian or Alaska Native|Native Hawaiian or Pacific Islander)",
+                              "Native Hawaiian Native Alaskan Native American or Aboriginal")
+df$race_recode <- ifelse(str_detect(df$race_recode, "My race"),
+                         "Another race not listed",
+                         df$race_recode)
+df["num_racial_id"] <- str_count(df$race_recode, ",")
+#max(df$num_racial_id)
+
+df["white"] <- str_detect(df$race_recode, "White")
+df["black"] <- str_detect(df$race_recode, "Black")
+df["asian"] <- str_detect(df$race_recode, "Asian")
+df["latino"] <- str_detect(df$race_recode, "Latin")
+df["nativeam"] <- str_detect(df$race_recode, "Native")
+df["prefer_not"] <- df$race_recode==""
+
+race_ids <- c("white", "black", "asian",
+              "latino", "nativeam",
+              "prefer_not")
+race_percent <- df %>% 
+  summarise(across(all_of(race_ids),
+                   ~sum(.x))) %>% 
+  mutate(across(everything(),
+                ~percent(.x/nrow(df), accuracy = 1)
+                )
+         ) 
+colnames(race_percent) <- c("white", 
+                            "Black", 
+                            "Asian",
+                            "Latino/a", 
+                            "Native Am., Native AK, Native HI, Pac. Isl.",
+                            "no response")
+race_percent <- race_percent %>% 
+  pivot_longer(everything())
+# race_percent <- df %>% 
+#   count(race_recode) %>% 
+#   arrange(desc(n)) %>% 
+#   mutate(prop = scales::percent(n/nrow(df)))
+# 
+# race_percent <- df %>% 
+#   count(race_recode) %>% 
+#   arrange(desc(n)) %>% 
+#   mutate(prop = scales::percent(n/nrow(df)))
+
+df["gender_recode"] <- case_when(
+  df$gender=="Man"~"men",
+  df$gender=="Woman"~"women",
+  df$gender=="Non-binary"~"non-binary",
+  df$gender=="My gender isn't listed above:"~"gender non-conforming"
+)
+
+
+gender_percent <- df %>% 
+  count(gender_recode) %>% 
+  arrange(desc(n)) %>% 
+  mutate(prop = scales::percent(n/nrow(df)))
+
+cat(paste0("The sample was mostly comprised of women (", gender_percent$prop[1], ") ",
+                  "and white participants ("))
+for(i in 1:nrow(race_percent)){
+  if(i < nrow(race_percent)){
+    cat(paste0(race_percent$value[i], " ", race_percent$name[i], ", "))
+  }
+  else{
+    cat(paste0("and ", race_percent$value[i], " ", race_percent$name[i], ". "))
+  }
+}
+cat("Note that percentages sum to more than 100 because some participants selected more than one racial identity")
+cat(". The average (SD) age was ")
+df$age <- as.numeric(df$age)
+cat(paste0(number(mean(df$age,na.rm=T),accuracy=0.01), 
+          " years (",
+          number(sd(df$age, na.rm=T), accuracy = 0.01),
+          "). "
+          )
+    )
+cat("  \n")
+
+```
+
+
+```{r,results='asis'}
+
+get_scale_stats <- function(df, columns, compname){
+  calpha = psych::alpha(df %>% 
+                          select(all_of(columns)),check.keys = T) 
+  cat(paste0("\nCronbach's $\\alpha$ for **",compname, "**: ",
+             number(calpha$total$raw_alpha[1],accuracy=.01)))
+  
+}
+
+for(f in all_facets){
+  select_vars <- facet_items %>% 
+    filter(facet==f) #just select relevant columns
+  select_name <- select_vars$facet_name[1]
+  get_scale_stats(df, select_vars$new_varname, select_name)
+  new_col = str_replace_all(select_name, "([-]|\\s)", ".")
+  df[new_col] <- rowMeans(df[,select_vars$new_varname], na.rm=T)
+  cat("  \n")
+}
+
+get_scale_stats(df, 
+                pj_items$new_varname,
+                "P-J Fit")
+cat("  \n")
+df["pj.fit"] <- rowMeans(df[,pj_items$new_varname],na.rm=T)
+
+consc.gen <- facet_items %>% filter(str_starts(facet, "C"))
+get_scale_stats(df, consc.gen$new_varname, "conscientiousness")
+cat("  \n")
+df["consc.gen"] <- rowMeans(df[,consc.gen$new_varname],na.rm=T)
+consc.work <- facet_items %>% filter(str_starts(facet, "WC"))
+get_scale_stats(df, consc.work$new_varname, "work conscientiousness")
+cat("  \n")
+df["consc.work"] <- rowMeans(df[,consc.work$new_varname],na.rm=T)
+
+```
+
+```{r}
+get_scale_stats(df, asrs_cols, "ADHD symptoms")
+```
+
+
+
+## ADHD Data
+
+
+
+
+```{r}
+yes <- nrow(df %>% filter(adhd_yn=="Yes"))
+yes_percent <- percent(nrow(df %>% filter(adhd_yn=="Yes"))/nrow(df))
+no <- nrow(df %>% filter(adhd_yn == "No"))
+unsure <- nrow(df %>% filter(adhd_yn=="Not sure"))
+```
+
+
+```{r,warning=F,message=F}
+p<-ggplot(df, aes(asrs_sum,fill=adhd_yn))+
+  geom_histogram(position="dodge",bins=10,colour="black")+
+  theme_bw()+
+  xlab("ADHD Symptom Severity")+
+  ylab("Frequency")+
+  ggtitle("Study 2: ADHD Symptom Severity by Self-ID")+
+  labs(fill = "ADHD Self-ID")+
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank())+
+  theme(text=element_text(family="Times New Roman",size=12),
+        axis.text.x = element_text(size=12),
+        axis.text.y = element_text(size=12),
+        legend.text = element_text(size=12))
+print(p)
+save_plot("adhd_sx_screener.png", p)
+
+```
+
+```{r,results='asis',warning=F,message=F}
+msd <- df %>% 
+  group_by(adhd_yn) %>% 
+  summarise(
+    msd = paste0(
+      number(mean(asrs_sum,na.rm=T), accuracy = .01),
+             " (",number(sd(asrs_sum,na.rm=T), accuracy = .01),
+      ")"
+    ),
+    m = number(mean(asrs_sum,na.rm=T), accuracy = .01),
+    sd = number(sd(asrs_sum,na.rm=T), accuracy = .01),
+    n = n()
+  )
+df$adhd_yn <- factor(df$adhd_yn)
+res <- df %>% anova_test(asrs_sum~adhd_yn, type = 3, effect.size ="pes")
+tmp.res <- get_anova_table(res)
+tmp.res["result"] <- format_anova_string(tmp.res)
+cat(paste0("There was a significant effect of ADHD self-identification on ADHD symptom severity scores, ",
+           tmp.res$result[1], ". "))
+tukeyres <- df %>% tukey_hsd(asrs_sum~adhd_yn)
+df["adhd"] <- if_else(df$adhd_yn == "No",
+                      "Non-ADHD", "ADHD")
+cat(paste0("\"No\" respondents ( _M_ = ", msd$m[1], ", _SD_ = ", msd$sd[1],
+           ") reported fewer symptoms than \"Yes\" respondents ( _M_ = ",
+           msd$m[3], ", _SD_ = ", msd$sd[3], "), ",
+           format_pval_apa(tukeyres$p.adj[2]), 
+           ", and \"Not sure\" respondents ( _M_ = ",
+           msd$m[2], ", _SD_ = ", msd$sd[2], "), ",
+           format_pval_apa(tukeyres$p.adj[1]), "."))
+cat(paste0("\"Yes\" respondents did not significantly differ ",
+           "from \"Not sure\" respondents, ",
+           format_pval_apa(tukeyres$p.adj[3])))
+df$adhd <- factor(df$adhd, levels = c("Non-ADHD", "ADHD"))
+```
+
+For the purposes of this analysis, we grouped those who reported “Yes” ( _N_ = `r yes`) and “Not sure” ( _N_ = `r unsure`) into one group and those who reported “No” ( _N_ = `r no`) into another group. 
+
+## Big five traits
+
+# Get correlations
+
+Look at correlations between ADHD composite and traits and facets:
+
+```{r}
+facet_items["facet.vnames"] <- str_replace_all(facet_items$facet_name, "([-]|\\s)", ".")
+col.order <- c("asrs_sum", "age", "consc.gen", 
+               facet_items$facet.vnames[str_starts(facet_items$facet.vnames, "work")==F],
+               "consc.work",
+               facet_items$facet.vnames[str_starts(facet_items$facet.vnames, "work")==T])
+cor_vars <- df %>% 
+  select(all_of(col.order))
+
+#cor.plot(cor_vars)
+```
+
+
+```{r,results="asis"}
+format_corrs <- function(data_mat){
+  out = Hmisc::rcorr(as.matrix(data_mat))
+  cors = apply(out$r, 1,FUN=function(x){str_replace(scales::number(x,
+                                                       accuracy=0.01),
+                                                   "0.", ".")})
+  pvals = out$P
+  for(i in 1:nrow(cors)){
+    for(j in 1:ncol(cors)){
+      if(is.na(pvals[i,j])==F){
+        cors[i, j] = paste0(cors[i,j], statstring::format_sig_stars(pvals[i,j]))
+      }
+      
+    }
+  }
+  return(cors)
+}
+#format correlations to make table 1
+cor_outs <- format_corrs(cor_vars)
+cor_outs <- data.frame(cor_outs)
+cor_outs[upper.tri(cor_outs,diag=T)] <- ""
+cor_outs["name"] <- colnames(cor_outs)
+cor_outs <- as_tibble(cor_outs)
+
+#table the means and SDs
+var_means_sds <- cor_vars %>% 
+  summarise(across(everything(),
+                   list(M = ~scales::number(mean(.x, na.rm=T),
+                                                   accuracy=0.01),
+                        SD = ~scales::number(sd(.x, na.rm=T),
+                                                   accuracy = 0.01))
+                   )
+            ) 
+#get means
+var_means_piv <- var_means_sds %>% 
+  select(ends_with("_M")) %>% 
+  pivot_longer(cols=everything()) %>% 
+  rename(M = value) %>% 
+  mutate(name = str_remove(name, "_M"))
+#get SDs
+var_means_piv <- var_means_sds %>% 
+  select(ends_with("_SD")) %>% 
+  pivot_longer(cols=everything()) %>% 
+  rename(SD = value) %>% 
+  mutate(name = str_remove(name, "_SD")) %>% 
+  left_join(var_means_piv, by = "name")
+#join means and SDs with correlations
+var_means_piv <- left_join(var_means_piv, cor_outs, by = "name")
+var_means_piv$name <- str_to_title(var_means_piv$name)#add the variable names as new column
+var_means_piv["name_1"] <- paste0(1:nrow(var_means_piv), ". ",
+                                  var_means_piv$name)
+colnames(var_means_piv) <- c("name", "SD", "M", as.character(1:nrow(var_means_piv)),
+                             "name_1")
+var_means_piv <- var_means_piv %>% 
+  select(name_1, M, SD, all_of(as.character(1:nrow(var_means_piv))),name)
+headerStyle <- createStyle(
+  fontSize = 12, fontName = "Times New Roman", halign = "center",
+  border = "bottom"
+)
+headerStyleIt <- createStyle(
+  fontSize = 12, fontName = "Times New Roman", halign = "center",
+  border = "bottom", textDecoration = 'italic'
+)
+col1HeaderStyle <- createStyle(
+  fontSize = 12, fontName = "Times New Roman",border = "bottom", halign = "left"
+)
+bodyStyle <- createStyle(
+  fontSize = 12, fontName = "Times New Roman", halign = "center"
+)
+col1Style <- createStyle(
+  fontSize = 12, fontName = "Times New Roman", halign = "left"
+)
+itStyle <- createStyle(
+  fontSize = 12, fontName = "Times New Roman", halign='left',
+  textDecoration = 'italic'
+)
+
+saveFmtdReg <- function(regDf, sheetName, fname){
+  wb<-createWorkbook(sheetName)
+  addWorksheet(wb,"sheet1",gridLines = F)
+  writeData(wb,sheet=1,regDf)
+  addStyle(wb,sheet=1,headerStyle, rows=1, cols=c(1,4:ncol(regDf)))
+  addStyle(wb,sheet=1,headerStyleIt, rows=1, cols=c(2,3))
+  addStyle(wb,sheet=1,bodyStyle, 
+           rows=1:nrow(regDf)+1, 
+           cols = 2:ncol(regDf),
+           gridExpand = T)
+  addStyle(wb, sheet = 1, col1HeaderStyle,
+           rows = 1, cols = 1)
+  addStyle(wb,sheet=1,col1Style, 
+           rows=1:nrow(regDf)+1, 
+           cols=1)
+  saveWorkbook(wb, paste0(fname, ".xlsx"), overwrite=T)
+}
+
+saveFmtdReg(var_means_piv,"tab1", paste0(output, "table1"))
+tmp.varmeans <- var_means_piv %>% 
+  mutate(across(everything(),
+                ~str_replace_all(.x, "[*]", "")),
+         name_1 = str_replace_all(name_1,"Work[.]", "Work "),
+         name_1 = str_remove(name_1, "\\d{1,2}[.]"),
+         name_1 = str_replace(name_1, "[.]", "-"))
+tmp.varmeans$name_1 <- paste0(1:nrow(tmp.varmeans), ".",
+                                  tmp.varmeans$name_1)
+saveFmtdReg(tmp.varmeans,"tab1", paste0(output, "siop_table1"))
+cor_vals <- Hmisc::rcorr(as.matrix(cor_vars))
+rs <- data.frame(r = cor_vals$r[1,])
+rs["name"] <- rownames(rs)
+ps <- data.frame(p = cor_vals$P[1,])
+ps["name"] <- rownames(ps)
+ns <- data.frame(n = cor_vals$n[1,])
+ns["name"] <- rownames(ns)
+rpn <- left_join(rs, ps, by = "name")
+rpn <- left_join(rpn, ns, by = "name")
+name_order <- str_replace_all(facet_items$facet_name[!duplicated(facet_items$facet_name)][1:6],
+                              "[-]", ".")
+for(i in 1:length(name_order)){
+  tmp <- rpn %>% 
+    filter(str_detect(str_to_lower(name), name_order[i]))
+  
+  cat(
+    paste0("ADHD symptom severity was negatively correlated with both general ",
+           name_order[i],  
+           ", ",
+           format_corr_apa(tmp$r[1],tmp$n[1]-2,tmp$p[1]),
+           " and work ",
+           name_order[i],
+           ", ",
+           format_corr_apa(tmp$r[2],tmp$n[2]-2,tmp$p[2]))
+  )
+  cat(".  \n")
+}
+
+
+```
+
+## Check for three-way interaction with presentation order
+
+```{r,warning=F,message=F,results='asis'}
+#check for 3-way interaction
+get_cols <- facet_items %>% 
+  filter(!duplicated(facet.vnames))
+get_cols <- c("consc", "work.consc", get_cols$facet.vnames)
+
+#create long dataframe for analysis
+long <- df %>% 
+  rename(consc="consc.gen",
+         work.consc = "consc.work") %>% 
+  select(all_of(get_cols),display_order_f,ResponseId,adhd) %>% 
+  pivot_longer(cols = all_of(get_cols)) %>% 
+  mutate(frameref = if_else(str_detect(name, "work"),
+                            "work", "general"),
+         outcome = str_remove_all(name, "work[.]")) %>% 
+  pivot_wider(id_cols = c(ResponseId, adhd, display_order_f,frameref),
+              names_from = outcome,
+              values_from = value)
+long$adhd <- factor(long$adhd, levels = c("Non-ADHD", "ADHD"))
+#define analysis columns
+get_cols <-  facet_items %>% 
+  filter(!duplicated(facet.vnames)) %>% 
+  filter(!str_starts(facet.vnames, "work"))
+get_cols <- c("consc", get_cols$facet.vnames)
+
+#create list of pretty column names for printing/plotting
+pretty_cols <-  facet_items %>% 
+  filter(!duplicated(facet.vnames)) %>% 
+  filter(!str_starts(facet.vnames, "work"))
+pretty_cols <- c("Conscientiousness",pretty_cols$facet_name)
+
+cat(paste0("There was no signficant three-way interaction effect between display order, ",
+           "ADHD status, and FOR on global Conscientiousness, "))
+model <- aov_ez(long,                           
+                id="ResponseId",                     
+                dv=get_cols[1],                         
+                within="frameref",
+                between = c("adhd","display_order_f"))
+tmp.mod <- data.frame(anova(model, es = "pes"))
+tmp.p <- data.frame(anova(model))$Pr..F.[nrow(data.frame(anova(model)))]
+tmp.mod["result"] <- mapply(aov_wrapper, f_stat = tmp.mod$`F`,
+             dfn = tmp.mod$num.Df,
+             dfd = tmp.mod$den.Df,
+             p_val=tmp.mod$Pr..F.,
+             partial_eta=tmp.mod$pes,
+             as_markdown=F)
+cat(tmp.mod$result[nrow(tmp.mod)])
+cat(" or any of the facets, ")
+threeway.res <- tmp.mod
+threeway.res["outcome"] <- "consc"
+#run the ANOVAs
+for(i in 2:length(get_cols)){
+  model <- aov_ez(long,                           
+                id="ResponseId",                     
+                dv=get_cols[i],                         
+                within="frameref",
+                between = c("adhd","display_order_f"))
+  tmp.mod <- data.frame(anova(model, es = "pes"))
+  tmp.p <- data.frame(anova(model))$Pr..F.[nrow(data.frame(anova(model)))]
+  tmp.mod["result"] <- mapply(aov_wrapper, f_stat = tmp.mod$`F`,
+               dfn = tmp.mod$num.Df,
+               dfd = tmp.mod$den.Df,
+               p_val=tmp.mod$Pr..F.,
+               partial_eta=tmp.mod$pes,
+             as_markdown=F)
+  cat(paste0(pretty_cols[i], ": "))
+  tmp.mod["outcome"] <- get_cols[i]
+  if(tmp.mod$Pr..F.[nrow(tmp.mod)] >= .05){
+    cat(paste0(tmp.mod$result[nrow(tmp.mod)]), ", ")
+  }
+  threeway.res <- rbind(threeway.res,tmp.mod)
+}
+cat("). ")
+#none, proceed to collapsing
+```
+
+
+```{r}
+#save three-way interaction results
+threeway.res["effect"] <- str_remove_all(rownames(threeway.res), "\\d+")
+threeway.wide <- threeway.res %>% 
+  pivot_wider(id_cols=effect,names_from=outcome,values_from=result)
+threeway.wide["df"] <- str_extract(threeway.wide$consc, "F[(]\\d, \\d+[)] = ")
+threeway.wide <- threeway.wide %>% 
+  mutate(across(all_of(get_cols),
+                ~str_remove_all(.x, "F[(]\\d, \\d+[)] = ")))
+threeway.wide <- threeway.wide %>% 
+  mutate(across(all_of(get_cols),
+         ~str_replace(.x, "~partial~ [$]\\\\eta[^2$]2[$]", "pes")))
+write.csv(threeway.wide, paste0(output, "3way_inrxn_pres_order.csv"))
+```
+
+
+## Mixed ANOVAs
+
+
+
+```{r}
+get_cols <- facet_items %>% 
+  filter(!duplicated(facet.vnames))
+get_cols <- c("consc", "work.consc", get_cols$facet.vnames)
+#transform to long for analysis
+long.c <- df %>% 
+  rename(consc="consc.gen",
+         work.consc = "consc.work") %>% 
+  select(all_of(get_cols),display_order_f,ResponseId,adhd) %>% 
+  pivot_longer(cols = all_of(get_cols)) %>% 
+  mutate(frameref = if_else(str_detect(name, "work"),
+                            "work", "general"),
+         outcome = str_remove_all(name, "work[.]")) %>% 
+  pivot_wider(id_cols = c(ResponseId, adhd, display_order_f,frameref,),
+              names_from = outcome,
+              values_from = value) 
+
+long.c$adhd <- factor(long.c$adhd, levels = c("Non-ADHD", "ADHD"))
+```
+
+```{r}
+#function runs analyses for each outcome variable
+do.pw <- function(longdat, comp.name){
+  return.list = list()
+  rename.tmp = list(outcome.var = comp.name)
+  tmp = longdat %>% 
+    rename(!!!rename.tmp)
+  tmp_tabs = data.frame(get_anova_table(anova_test(tmp, 
+                                         dv = "outcome.var",
+                                         within = "frameref",
+                                         between = "adhd",
+                                         wid = "ResponseId",
+                                         type = 3,
+                                         effect.size = "pes")))
+  tmp_tabs["outcome"] = comp.name
+  return.list[["anova"]] = tmp_tabs
+  #pairwise within comparison
+  pw.paired = tmp %>% 
+    group_by(adhd) %>% 
+    t_test(outcome.var~frameref,
+                    paired=T,
+                    p.adjust.method = "none")
+  #effect size within
+  pw.paired = pw.paired %>% 
+    left_join(
+      tmp %>% 
+        group_by(adhd) %>% 
+        cohens_d(outcome.var~frameref, paired=T,ci=T) %>% 
+        select(adhd,effsize,magnitude,conf.low,conf.high),
+      by = "adhd") %>% 
+    rename(comparison = adhd)
+  #pairwise between comparison
+  pw.btwn = tmp %>% 
+    group_by(frameref) %>% 
+    t_test(outcome.var~adhd, 
+           p.adjust.method = "none",
+           var.equal=T) 
+  #effect size between
+  pw.btwn = pw.btwn %>% 
+    left_join(
+      tmp %>% 
+        group_by(frameref) %>% 
+        cohens_d(outcome.var~adhd,
+           var.equal=T, ci=T) %>% 
+        select(frameref,effsize,magnitude,conf.low,conf.high),
+      by = "frameref") %>% 
+    rename(comparison = frameref)
+  pw.tmp = rbind(pw.paired,pw.btwn) %>% 
+    mutate(outcome = comp.name) %>% 
+    adjust_pvalue(method="fdr")
+  pw.tmp[".y."] = comp.name
+  return.list[["pw"]] = pw.tmp
+  return(return.list)
+}
+```
+
+
+### Run analyses in loop
+
+```{r,warning=F,message=F}
+#consc -----
+analysis.cols <- get_cols %>% 
+  mutate(vnames = str_remove_all(facet.vnames, "work[.]")) %>% 
+  filter(!duplicated(vnames))
+analysis.cols <- analysis.cols$vnames
+consc.res <- do.pw(long.c, "consc")
+anova_tabs <- consc.res$anova
+pw_result <- consc.res$pw
+
+for(i in 1:length(analysis.cols)){
+  tmp.res <- do.pw(long.c, analysis.cols[i])
+  anova_tabs <- rbind(anova_tabs, tmp.res$anova)
+  pw_result <- rbind(pw_result, tmp.res$pw)
+}
+```
+
+
+Format results and save as .xlsx
+
+```{r}
+pw_result["p.fmt"] <- sapply(pw_result$p.adj, format_pval_apa)
+pw_result <- pw_result %>% 
+  mutate(tstat = str_c(
+    "t(", number(df, accuracy = 1), ") = ",
+    number(statistic, accuracy = .01), ", ",
+    str_remove_all(p.fmt, "[_]"), 
+    ", d = ", 
+    number(effsize,accuracy=.01)
+  ))
+pw_condense <- pw_result %>% 
+  select(comparison, outcome, group1, group2,tstat)
+
+pw_piv <- pw_condense %>% 
+  mutate(contrast = str_c(comparison, group1, comparison, group2, sep = " ")) %>% 
+  pivot_wider(names_from=outcome,
+              values_from=tstat,
+              id_cols=contrast) 
+
+write.xlsx(pw_piv, paste0(output, "rstatix_pairwise_results.xlsx"))
+
+anova_tabs["stat"] <- number(anova_tabs$`F`, accuracy = .01)
+anova_tabs["stars"] <- sapply(anova_tabs$p, format_sig_stars)
+anova_tabs["pfmt"] <- sapply(anova_tabs$p, format_pval_apa)
+anova_tabs$stat1 <- str_c(anova_tabs$stat, anova_tabs$stars)
+anova_tabs$stat2 <- str_remove_all(str_c(anova_tabs$stat,", ", anova_tabs$pfmt, ", ",
+                                         number(anova_tabs$pes, accuracy = .001)),
+                                   "[_]")
+anova_tabs$stat2 <- str_replace_all(anova_tabs$stat2, ",", "\n")
+
+anova_wide <- anova_tabs %>%
+  pivot_wider(id_cols = Effect,
+              names_from=outcome,
+              values_from = stat2)
+write.xlsx(anova_wide, paste0(output, "rstatix_results.xlsx"))
+```
+
+### SIOP Plots
+
+```{r}
+### Option 1: stacked line graphs
+
+create_plot <- function(emm.obj, title){
+  #plot outputs
+  group.colors = list(Work = "#E57A77",
+                     General ="#3D65A5")
+  p = data.frame(emm.obj) %>% 
+    mutate(frameref = str_to_title(frameref)) %>% 
+    ggplot(aes(x=frameref,y=emmean,group=adhd))+
+    geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL,colour=adhd),
+                  width=.05)+
+    geom_point(aes(colour=adhd))+
+    geom_line(aes(colour=adhd))+
+    theme_bw()+
+    ylim(bottom=2.7,top=5)+
+    labs(y = "Est. Mean",
+         title = str_to_title(title))+
+    theme(panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.grid = element_blank(),
+          text = element_text(family="Times"),
+          axis.text=element_text(size=12),
+          title = element_text(size = 12),
+          legend.title = element_blank(),
+          legend.position ="bottom",
+          legend.text = element_text(size = 12),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 12))+
+    scale_fill_manual(values = group.colors)
+  return(p)
+}
+plots <- list()
+#create plots
+eff.t <- emmeans(lmer(consc~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))#emmeans for plot
+plots[["consc"]] <- create_plot(eff.t, "Conscientiousness")
+eff.t <- emmeans(lmer(self.efficacy~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))
+plots[["self.efficacy"]] <- create_plot(eff.t, "Self-Efficacy")
+eff.t <- emmeans(lmer(orderliness~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))
+plots[["orderliness"]] <- create_plot(eff.t, "Orderliness")
+eff.t <- emmeans(lmer(dutifulness~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))
+plots[["dutifulness"]] <- create_plot(eff.t, "Dutifulness")
+eff.t <- emmeans(lmer(achievement.striving~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))
+plots[["achievement.striving"]] <- create_plot(eff.t, "Achievement-Striving")
+eff.t <- emmeans(lmer(self.discipline~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))
+plots[["self.discipline"]] <- create_plot(eff.t, "Self-Discipline")
+
+eff.t <- emmeans(lmer(cautiousness~adhd*frameref+(1|ResponseId),data=long.c), 
+                 specs = c("adhd", "frameref"))
+plots[["cautiousness"]] <- create_plot(eff.t, "Cautiousness")
+
+
+
+
+save_plot(paste0(output, "conscientiousness_comparison.png"), 
+          plots$consc)
+
+bottom.graph<-ggarrange(plots$self.efficacy, 
+          plots$self.discipline, plots$orderliness,
+          ncol=3, nrow=1, 
+          common.legend = TRUE, legend="bottom")
+
+save_plot(paste0(output, "facet_comparisons.png"), 
+          bottom.graph)
+```
+
+```{r}
+#plot magnitude of pairwise comparisons
+# pw_result %>% 
+#   filter(group2=="ADHD") %>% 
+#   ggplot(aes(x=`.y.`, y = effsize)) +
+#   geom_bar(aes(fill=comparison),stat="identity",position="dodge2")
+
+mag.adhd <- pw_result %>% 
+  mutate(eff.ci = str_c(number(effsize, accuracy = .01),
+                        " (",
+                        number(conf.low, accuracy = .01),
+                        ", ",
+                        number(conf.high, accuracy = .01),
+                        ")")) %>% 
+  filter(group2=="ADHD") %>% 
+  pivot_wider(id_cols=c(`.y.`, group1, group2), 
+              names_from=comparison, 
+              values_from=eff.ci) %>% 
+  arrange(desc(work)) %>% 
+  mutate(Outcome = str_replace_all(str_to_title(`.y.`), "[.]", "-")) %>% 
+  select(Outcome, general, work)
+
+write.xlsx(mag.adhd, paste0(output, "group_diffs_cohd.xlsx"))
+```
+
+
+```{r}
+### Option 2: boxplots
+top.graph <- long.c %>% 
+  mutate(frameref=str_to_title(frameref)) %>% 
+    ggplot(aes(x=adhd,y=consc))+
+    geom_boxplot(aes(fill=frameref))+
+    theme_bw()+
+    labs(y = "Conscientiousness")+
+    theme(panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.grid = element_blank(),
+          text = element_text(family="Times"),
+          axis.text=element_text(size=12),
+          title = element_text(size = 14),
+          legend.text = element_text(size=12),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 12))+
+    scale_fill_manual(values = group.colors,
+                      name="Frame of\nReference")
+save_plot(paste0(output, "conscientiousness_boxplot.png"), 
+          top.graph,
+          base_width=4)
+
+bottom.graph <- long.c %>% 
+  pivot_longer(any_of(get_cols)) %>% 
+  filter(name %in% c("self.efficacy", "self.discipline", "orderliness")) %>% 
+  mutate(frameref=str_to_title(frameref),
+         name = str_to_title(str_replace_all(name, "[.]", "-"))) %>% 
+    ggplot(aes(x=adhd,y=value))+
+    geom_boxplot(aes(fill=frameref))+
+    facet_wrap(~name)+
+    theme_bw()+
+    labs(y = "Facet Score (1-5)")+
+    theme(panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.grid = element_blank(),
+          strip.background =element_rect(fill="white"),
+          text = element_text(family="Times"),
+          axis.text=element_text(size=12),
+          title = element_text(size = 14),
+          legend.text = element_text(size=12),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 12))+
+    scale_fill_manual(values = group.colors,
+                      name="Frame of\nReference")
+
+save_plot(paste0(output, "facet_boxplot.png"), 
+          bottom.graph,
+          base_width=7)
+```
+
+
+```{r}
+p<-ggarrange(plots$consc, plots$self.efficacy, 
+          plots$self.discipline, plots$orderliness,
+          ncol=2, nrow=2, 
+          common.legend = TRUE, legend="bottom")
+
+save_plot(paste0(output, "comparisons.png"), p)
+```
+
+Look at group means:
+
+```{r}
+get_cols <- facet_items %>% 
+  filter(!duplicated(facet.vnames))
+
+grp_means <- df %>% 
+  group_by(adhd) %>% 
+  summarise(across(all_of(c("consc.gen","consc.work",get_cols$facet.vnames)),
+    ~paste0(
+      number(mean(.x,na.rm=T), accuracy = .01),
+             " (",number(sd(.x,na.rm=T), accuracy = .01),
+      ")"
+    )
+  )) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = !adhd) %>% 
+  mutate(frameofref = if_else(str_detect(name, "work"),
+                              "Work", "General"),
+         variable = str_remove_all(name, "([.]gen|[.]work|work[.])")) %>% 
+  pivot_wider(id_cols=c(variable),
+              names_from = c(adhd,frameofref),
+              names_sep = " ",
+              values_from = value) %>% 
+  mutate(variable = str_to_title(str_replace_all(variable, "[.]", "-")))
+
+n_note <- paste0("Note. N ADHD = ", unsure+yes, ", N Non-ADHD = ", no, ".")
+
+flextable(grp_means) %>% 
+  add_footer_lines(n_note)
+
+write.xlsx(grp_means, paste0(output, "means.xlsx"))
+```
+
+## Exploratory PJ Fit analysis
+
+```{r,warning=F,message=F,results='asis'}
+#pj-fit analysis
+df["z.pj.fit"] <- scale(df$pj.fit)[,1]
+#check for 3-way interaction
+get_cols <- facet_items %>% 
+  filter(!duplicated(facet.vnames))
+get_cols <- c("consc", "work.consc", get_cols$facet.vnames)
+#create long dataframe for analysis
+long <- df %>% 
+  rename(consc="consc.gen",
+         work.consc = "consc.work") %>% 
+  select(all_of(get_cols),display_order_f,ResponseId,z.pj.fit,adhd) %>% 
+  pivot_longer(cols = all_of(get_cols)) %>% 
+  mutate(frameref = if_else(str_detect(name, "work"),
+                            "work", "general"),
+         outcome = str_remove_all(name, "work[.]")) %>% 
+  pivot_wider(id_cols = c(ResponseId, adhd, display_order_f,frameref,z.pj.fit),
+              names_from = outcome,
+              values_from = value)
+
+mod <- lmer(consc~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+aov.outs <- data.frame(anova_stats(mod))
+aov.outs["outcome"] <- "consc"
+
+mod <- lmer(self.efficacy~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+tmp.aov <- data.frame(anova_stats(mod))
+tmp.aov["outcome"] <- "self.efficacy"
+aov.outs <- rbind(aov.outs, tmp.aov)
+
+mod <- lmer(orderliness~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+tmp.aov <- data.frame(anova_stats(mod))
+tmp.aov["outcome"] <- "orderliness"
+aov.outs <- rbind(aov.outs, tmp.aov)
+
+mod <- lmer(dutifulness~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+tmp.aov <- data.frame(anova_stats(mod))
+tmp.aov["outcome"] <- "dutifulness"
+aov.outs <- rbind(aov.outs, tmp.aov)
+
+mod <- lmer(achievement.striving~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+tmp.aov <- data.frame(anova_stats(mod))
+tmp.aov["outcome"] <- "achievement.striving"
+aov.outs <- rbind(aov.outs, tmp.aov)
+
+mod <- lmer(self.discipline~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+tmp.aov <- data.frame(anova_stats(mod))
+tmp.aov["outcome"] <- "self.discipline"
+aov.outs <- rbind(aov.outs, tmp.aov)
+
+mod <- lmer(cautiousness~adhd*frameref*z.pj.fit+(1|ResponseId), data = long)
+tmp.aov <- data.frame(anova_stats(mod))
+tmp.aov["outcome"] <- "cautiousness"
+aov.outs <- rbind(aov.outs, tmp.aov)
+aov.outs <- aov.outs %>% 
+  filter(term!="Residuals")
+aov.outs["stat"] <- mapply(aov_wrapper, 
+                           f_stat=aov.outs$statistic,
+                           dfn = aov.outs$NumDF,
+                           dfd = aov.outs$DenDF,
+                           p_val = aov.outs$p.value,
+                           partial_eta=aov.outs$partial.etasq,
+                           as_markdown=F)
+
+aov.outs <- aov.outs %>% 
+  pivot_wider(id_cols = term, names_from=outcome, values_from = stat)
+aov.outs$df <- str_extract(aov.outs$consc, "F[(]\\d, \\d+[)] = ")
+aov.outs <- aov.outs %>% 
+  mutate(across(c(consc, self.efficacy, orderliness,
+                  dutifulness, achievement.striving,
+                  self.discipline, cautiousness),
+                ~str_remove_all(.x, "F[(]\\d, \\d+[)] = ")))
+aov.outs <- aov.outs %>% 
+  mutate(across(c(consc, self.efficacy, orderliness,
+                  dutifulness, achievement.striving,
+                  self.discipline, cautiousness),
+                ~str_replace(.x, "~partial~ [$]\\\\eta[^2$]2[$]", "pes")))
+write.xlsx(aov.outs, paste0(output, "pjfit_results.xlsx"))
+```
+
+## Exploratory correlation comparisons
+
+Compare symptom-score correlations across work-specific vs. general forms
+
+```{r}
+df["num_asrs"] <- rowSums(is.na(df[,asrs_cols]))
+tmp <- df %>% filter(num_asrs<1)
+
+cocor(~consc.gen+asrs_sum|consc.work+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+print("******************************* \n")
+cocor(~self.efficacy+asrs_sum|work.self.efficacy+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+print("******************************* \n")
+cocor(~self.discipline+asrs_sum|work.self.discipline+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+print("******************************* \n")
+cocor(~achievement.striving+asrs_sum|work.achievement.striving+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+print("******************************* \n")
+cocor(~orderliness+asrs_sum|work.orderliness+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+print("******************************* \n")
+cocor(~dutifulness+asrs_sum|work.dutifulness+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+print("******************************* \n")
+cocor(~cautiousness+asrs_sum|work.cautiousness+asrs_sum,
+      data = tmp,
+      test = c("hittner2003","zou2007"))
+```
+
+
+
+# CFAs for measurement invariance
+
+```{r}
+gen.cols <- facet_items %>% filter(str_starts(facet, "W")==F)
+gen.cols <- gen.cols$new_varname
+work.cols <- facet_items %>% filter(str_starts(facet, "W")==T)
+work.cols <- work.cols$new_varname
+```
+
+
+
+## Measurement Invariance: Work FOR
+
+```{r}
+#build formulas for the CFA
+selfeff <- paste0(facet_items$new_varname[facet_items$facet=="WC1"],
+                 collapse=" + ")
+order <- paste0(facet_items$new_varname[facet_items$facet=="WC2"],
+                 collapse=" + ")
+duty <- paste0(facet_items$new_varname[facet_items$facet=="WC3"],
+                 collapse=" + ")
+achieve <- paste0(facet_items$new_varname[facet_items$facet=="WC4"],
+                 collapse=" + ")
+selfdisc <- paste0(facet_items$new_varname[facet_items$facet=="WC5"],
+                 collapse=" + ")
+caution <- paste0(facet_items$new_varname[facet_items$facet=="WC6"],
+                 collapse=" + ")
+```
+
+```{r}
+#specify the factor structure
+facstruc <- paste0("w.selfeff =~ ", selfeff, "\n",
+                  "w.order =~ ", order, "\n",
+                  "w.duty =~ ", duty, "\n",
+                  "w.achieve =~ ", achieve, "\n",
+                  "w.selfdisc =~ " , selfdisc, "\n",
+                  "w.caution =~ ", caution, "\n")
+cat(facstruc)
+#https://francish.netlify.app/post/accounting-for-missing-data/
+```
+
+
+Configural Invariance:
+
+```{r}
+cat("  \nWORK CONFIGURAL INVARIANCE  \n")
+#https://towardsdatascience.com/testing-for-measurement-invariance-in-r-b44cace10148
+config <- cfa(facstruc,
+              data=df,
+              group="adhd",
+              missing="fiml",
+              estimator="ML")
+#summary(config,fit.measures=TRUE)#seems like the multigroup model fit is acceptable
+#create fit dataframe
+fitm.config <- t(data.frame(fitMeasures(config,
+            c("chisq", "df", "pvalue", "cfi", "tli", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper",
+              "srmr"))))
+fitm.config <- apply(fitm.config, 2,
+                     function(x) number(x, accuracy = .01))
+
+fitm.config["Model"] <- "M1 Configural Invariance" #store fit  in dataframe
+```
+
+Metric invariance:
+
+```{r}
+cat("  \nWORK METRIC INVARIANCE  \n")
+metric <- cfa(facstruc,
+              data=df,
+              group="adhd",
+              missing="fiml",
+              estimator="ML",
+              group.equal=c("loadings"))
+#summary(metric,fit.measures=TRUE)
+
+anova(metric, config)
+metric.config.comp <- compareFit(config, metric)
+#metric model definitely fits worse than configural
+summary(metric.config.comp)
+```
+
+```{r}
+metric_lavtest <- lavTestScore(metric)
+metric_lavtest <- data.frame(metric_lavtest$uni)
+naughty <- metric_lavtest %>% filter(p.value < .05)
+ptabs <- parTable(metric)
+naughty_items <- ptabs %>%
+  filter(plabel %in% c(naughty$lhs, naughty$rhs))
+naughty_items["eq"] <- str_c(naughty_items$lhs, " ", naughty_items$op, " ", naughty_items$rhs)
+#look at the naughty items
+naughty_item_wording <- facet_items %>%
+  filter(new_varname %in% c(naughty_items$lhs, naughty_items$rhs))
+naughty_item_wording$clean_var_desc <- str_replace(naughty_item_wording$clean_description, "[.]", "")
+
+cat(paste0("The modification index tests the improvement in model fit if the equality constraints for individual parameters were released. This test suggested that releasing equality constraints on the loadings of ",
+           'one item from the achievement-striving scale ("', 
+           naughty_item_wording$clean_var_desc[1], 
+           '") would improve model fit. ')
+    )
+```
+
+
+```{r}
+#save model comparison to local excel file
+#savve empty df to avoid appending issue
+write.csv(data.frame(), 
+          paste0(output, "metric.config.comp.csv"))
+saveFile(metric.config.comp,
+         tableFormat = T,
+         fit.measures = c("chisq", "df", "pvalue", "cfi", "tli",
+                          "rmsea", "rmsea.ci.lower", "rmsea.ci.upper",
+              "srmr"),
+         file=paste0(output,"metric.config.comp.csv"), writeArgs = list(sep=",",
+                                                               append=F))
+
+summary(metric.config.comp)#looks like the simpler model (metric invariance) fits better than the complex model (configural invariance)
+fitm.metric <- t(data.frame(fitMeasures(metric,
+            c("chisq", "df", "pvalue", "cfi", "tli", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper",
+              "srmr"))))
+fitm.metric <- apply(fitm.metric, 2, function(x) number(x, accuracy = .01))#store fit in dataframe
+fitm.metric["Model"] <- "M2 Metric Invariance"
+fitm.config<- rbind(fitm.config, fitm.metric)#bind m1 fit with this model's fit
+
+```
+Partial Metric invariance:
+
+```{r}
+naughty.metric <- naughty_items$eq[!duplicated(naughty_items$eq)]
+partial.metric <- cfa(facstruc,
+              data=df,
+              group="adhd",
+              missing="fiml",
+              estimator="ML",
+              group.equal=c("loadings"),
+              group.partial = naughty.metric)
+summary(partial.metric,fit.measures=TRUE)
+
+anova(partial.metric, config)
+partial.metric.config.comp <- compareFit(config, partial.metric)
+#save model comparison to local excel file
+write.csv(data.frame(), 
+          paste0(output, "partial.metric.config.comp.csv"))
+saveFile(partial.metric.config.comp,
+         tableFormat = T,
+         fit.measures = c("chisq", "df", "pvalue", "cfi", "tli",
+                          "rmsea", "rmsea.ci.lower", "rmsea.ci.upper",
+              "srmr"),
+         file=paste0(output,"partial.metric.config.comp.csv"), 
+         writeArgs = list(append = F, sep=","))
+
+summary(partial.metric.config.comp)#looks like the simpler model (metric invariance) fits better than the complex model (configural invariance)
+fitm.metric <- t(data.frame(fitMeasures(partial.metric,
+            c("chisq", "df", "pvalue", "cfi", "tli", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper",
+              "srmr"))))
+fitm.metric <- apply(fitm.metric, 2, function(x) number(x, accuracy = .01))#store fit in dataframe
+fitm.metric["Model"] <- "M2a Partial Metric Invariance"
+fitm.config<- rbind(fitm.config, fitm.metric)#bind m1 fit with this model's fit
+
+```
+
+Scalar invariance: 
+
+```{r}
+cat("  \nSCALAR INVARIANCE  \n")
+scalar <- cfa(facstruc,
+              data=df,
+              group="adhd",
+              missing="fiml",
+              estimator="ML",
+              group.equal=c("loadings",
+                            "intercepts"),
+              group.partial = naughty.metric)
+#summary(scalar,fit.measures=TRUE) 
+anova(scalar, partial.metric)# the ANOVA is significant, which suggests noninvariance
+scalar.metric.comp <- compareFit(partial.metric, scalar)
+#save the model comparisons locally
+write.csv(data.frame(), 
+          paste0(output,"scalar.metric.comp.csv"))
+saveFile(scalar.metric.comp,
+         tableFormat = T,
+         fit.measures = c("chisq", "df", "pvalue",
+                          "cfi", "tli", "rmsea",
+                          "rmsea.ci.lower", "rmsea.ci.upper",
+                          "srmr"),
+         file=paste0(output,"scalar.metric.comp.csv"),
+         writeArgs = list(append=F,sep=","))
+
+fitm.scalar <- t(data.frame(fitMeasures(scalar,
+                                        c("chisq", "df", "pvalue", "cfi",
+                                          "tli", "rmsea", "rmsea.ci.lower",
+                                          "rmsea.ci.upper","srmr"))))
+#store model fit in dataframe and bind
+fitm.scalar <- apply(fitm.scalar, 2, function(x) number(x, accuracy = .01))
+fitm.scalar["Model"] <- "M3 Scalar Invariance"
+fitm.config<- rbind(fitm.config, fitm.scalar)
+summary(scalar.metric.comp)#looks like the simpler model (metric invariance) fits worse than the more complex model (scalar)
+```
+
+Inspect the items that are likely sources of non-invariance:
+
+```{r}
+#look at items that are performing differently
+scalar_lavtest <- lavTestScore(scalar)
+scalar_lavtest <- data.frame(scalar_lavtest$uni)
+naughty <- scalar_lavtest %>% filter(p.value < .05)
+ptabs <- parTable(scalar)
+naughty_items <- ptabs %>%
+  filter(plabel %in% c(naughty$lhs, naughty$rhs))
+naughty_items["eq"] <- str_c(naughty_items$lhs, " ", naughty_items$op, " ", naughty_items$rhs)
+#look at the naughty items
+naughty_item_wording <- facet_items %>%
+  filter(new_varname %in% c(naughty_items$lhs, naughty_items$rhs))
+naughty_item_wording$clean_var_desc <- str_replace(naughty_item_wording$clean_description, "[.]", "")
+
+
+
+cat(paste0("The modification index tests the improvement in model fit if the equality constraints for individual parameters were released. This test suggested that releasing equality constraints on the intercepts of ",
+           'two items from the self-efficacy scale ("', 
+           naughty_item_wording$clean_var_desc[1], 
+           '" and "',
+           naughty_item_wording$clean_var_desc[2], 
+           '"), ', 
+           'two items from the orderliness scale ("',
+           naughty_item_wording$clean_var_desc[3], 
+           '" and "',
+           naughty_item_wording$clean_var_desc[4], 
+           '"), two items from the self-discipline scale ("',
+           naughty_item_wording$clean_var_desc[5], 
+           '" and "',
+           naughty_item_wording$clean_var_desc[6], 
+           '"), and one item from the cautiousness scale ("',
+           naughty_item_wording$clean_var_desc[7], 
+           '") would improve model fit. ')
+    )
+
+```
+
+
+
+```{r}
+partial.scalar <- cfa(facstruc,
+              data=df,
+              group="adhd",
+              missing="fiml",
+              estimator="ML",
+              group.equal=c("loadings",
+                            "intercepts"),
+              group.partial = c(naughty_items$eq[!duplicated(naughty_items$eq)],
+                                naughty.metric))
+partial.scalar.comp <- compareFit(partial.metric, partial.scalar)
+
+#save the model comparisons locally
+write.csv(data.frame(),
+          paste0(output,"partial.scalar.comp.csv"))
+saveFile(partial.scalar.comp,
+         tableFormat = T,
+         fit.measures = c("chisq", "df", "pvalue", "cfi",
+                          "tli", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper","srmr"),
+         file=paste0(output,"partial.scalar.comp.csv"),
+         writeArgs = list(append=F,sep=","))
+
+summary(partial.scalar.comp)
+fitm.partial.scalar <- t(data.frame(fitMeasures(partial.scalar,
+            c("chisq", "df", "pvalue", "cfi", "tli", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper",
+              "srmr"))))
+fitm.partial.scalar <- apply(fitm.partial.scalar, 2, function(x) number(x, accuracy = .01))
+fitm.partial.scalar["Model"] <- "M3a Partial Scalar Invariance"
+fitm.config<- rbind(fitm.config, fitm.partial.scalar)
+
+fitm.config <- data.frame(fitm.config)
+fitm.config["chisq.df"] <- str_c(fitm.config$chisq, " (", str_replace(fitm.config$df, ".00", ""), ")")
+#save local
+write.csv(fitm.config, paste0(output,"work_partial_invariance_model.csv"))
+
+```
+
+```{r}
+mod.params <- as.data.frame(unclass(parameterEstimates(partial.scalar))) %>% 
+  mutate(group = if_else(group==1, "NonADHD", "ADHD")) %>% 
+  filter(lhs != rhs) %>% 
+  select(lhs, op, rhs, group, label, est, se) %>% 
+  pivot_wider(names_from=group,values_from=c(est,se))
+mod.params$param <- str_c(mod.params$lhs, " ", mod.params$op, " ",mod.params$rhs)
+mod.params <- mod.params %>% 
+  mutate(est_se_nonadhd = str_c(number(est_NonADHD, accuracy = .01),
+                                " (",
+                                number(se_NonADHD, accuracy = .01),
+                                ")"),
+         est_se_adhd = str_c(number(est_ADHD, accuracy = .01),
+                                " (",
+                                number(se_ADHD, accuracy = .01),
+                                ")"))
+mod.params$naughty <- mod.params$param %in% naughty_items$eq[!duplicated(naughty_items$eq)]
+mod.params$est_se_adhd <- ifelse(mod.params$naughty==T,
+                              mod.params$est_se_adhd,
+                              "")
+mod.params <- mod.params %>% 
+  select(param, est_se_nonadhd,est_se_adhd,naughty)
+#look at outputs
+write.csv(mod.params, paste0(output, "model_parameters_partial_scalar.csv"))
+```
+
