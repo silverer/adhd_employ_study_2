@@ -1,6 +1,6 @@
 # Study 2: Personality Tests & ADHD
 
-## Elisabeth R. Silver, Mikki Hebl, & Fredrick L. Oswald
+## Elisabeth R. Silver, Mikki Hebl, & Frederick L. Oswald
 
 This code repository contains the code necessary to replicate the analyses reported by Silver et al. in their study on the implications of using personality testing in selection contexts for job applicants with ADHD. 
 

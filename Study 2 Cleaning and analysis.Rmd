@@ -1,6 +1,6 @@
 ---
 title: "Big Five Employment Measures and ADHD"
-author: "Elisabeth R Silver, Mikki Hebl, & Fredrick L. Oswald"
+author: "Elisabeth R Silver, Mikki Hebl, & Frederick L. Oswald"
 date: "`r Sys.Date()`"
 output:
   word_document:
