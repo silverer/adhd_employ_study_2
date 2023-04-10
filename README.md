@@ -26,5 +26,7 @@ In addition, the data files for the sample can be provided via email request to 
 
 4. `style-ref.docx` helper file to format R Markdown outputs. 
 
+## Packages
 
+This project uses a number of packages. Please see the code files for a complete list. One package, `statstring`, was developed by the corresponding author. To download this package, use `devtools::install_github(silverer/statstring)`. 
 

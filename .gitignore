@@ -1,4 +1,5 @@
-data/*.csv
+data/clean_survey_data.csv
+data/survey_data.csv
 calculate_adhd_scores.R
 .DS_Store
 data/.DS_Store

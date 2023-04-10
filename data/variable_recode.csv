@@ -1,0 +1,91 @@
+,og_varname,rev_score,clean_description,facet,facet_name
+1,StartDate,NA,Start Date,NA,NA
+2,EndDate,NA,End Date,NA,NA
+3,Status,NA,Response Type,NA,NA
+4,Progress,NA,Progress,NA,NA
+5,Duration (in seconds),NA,Duration (in seconds),NA,NA
+6,Finished,NA,Finished,NA,NA
+7,RecordedDate,NA,Recorded Date,NA,NA
+8,ResponseId,NA,Response ID,NA,NA
+9,DistributionChannel,NA,Distribution Channel,NA,NA
+10,UserLanguage,NA,User Language,NA,NA
+11,Q_RecaptchaScore,NA,Q_RecaptchaScore,NA,NA
+12,consent,NA,,NA,NA
+13,C1_1,0,Complete tasks successfully.,C1,self-efficacy
+14,C1_2,0,Excel in what I do.,C1,self-efficacy
+15,C1_3,0,Handle tasks smoothly.,C1,self-efficacy
+16,C1_4,0,Know how to get things done.,C1,self-efficacy
+17,C2_1,0,Like to tidy up.,C2,orderliness
+18,C2_2,1,Often forget to put things back in their proper place.,C2,orderliness
+19,C2_3,1,Leave a mess in my room.,C2,orderliness
+20,C2_4,1,Leave my belongings around.,C2,orderliness
+21,C3_1,0,Keep my promises.,C3,dutifulness
+22,C3_2,0,Tell the truth.,C3,dutifulness
+23,C3_3,1,Break rules.,C3,dutifulness
+24,C3_4,1,Break my promises.,C3,dutifulness
+25,C4_1,0,Do more than what's expected of me.,C4,achievement-striving
+26,C4_2,0,Work hard.,C4,achievement-striving
+27,C4_3,1,Put little time and effort into my work.,C4,achievement-striving
+28,C4_4,1,Do just enough work to get by.,C4,achievement-striving
+29,C5_1,0,Am always prepared.,C5,self-discipline
+30,C5_2,0,Carry out my plans.,C5,self-discipline
+31,C5_3,1,Waste my time.,C5,self-discipline
+32,C5_4,1,Have difficulty starting tasks.,C5,self-discipline
+33,C6_1,1,Jump into things without thinking.,C6,cautiousness
+34,C6_2,1,Make rash decisions.,C6,cautiousness
+35,C6_3,1,Rush into things.,C6,cautiousness
+36,C6_4,1,Act without thinking.,C6,cautiousness
+37,age,NA,What is your age in years?,NA,NA
+38,gender,NA,Selected Choice,NA,NA
+39,gender_4_TEXT,NA,My gender isn't listed above: ,NA,NA
+40,race,NA,Selected Choice,NA,NA
+41,race_7_TEXT,NA,My race isn't listed above: ,NA,NA
+42,education,NA,What is the highest level of school you have completed or the highest degree you have earned?,NA,NA
+43,income,NA,Information about income is important to understand. Would you please give your best guess? Please choose the answer that includes your household's income in 2021 before taxes.,NA,NA
+44,WC1_1,0,Complete work tasks successfully.,C1,self-efficacy
+45,WC1_2,0,Excel in what I do at work.,C1,self-efficacy
+46,WC1_3,0,Handle work tasks smoothly.,C1,self-efficacy
+47,WC1_4,0,Know how to get things done at work.,C1,self-efficacy
+48,WC2_1,0,Like to tidy up at work.,C2,orderliness
+49,WC2_2,1,Often forget to put things back in their proper place at work.,C2,orderliness
+50,WC2_3,1,Leave a mess in my workspace.,C2,orderliness
+51,WC2_4,1,Leave my belongings around at work.,C2,orderliness
+52,WC3_1,0,Keep my promises at work.,C3,dutifulness
+53,WC3_2,0,Tell the truth at work.,C3,dutifulness
+54,WC3_3,1,Break rules at my job.,C3,dutifulness
+55,WC3_4,1,Break my promises at work.,C3,dutifulness
+56,WC4_1,0,Do more than what's expected of me at my job.,C4,achievement-striving
+57,WC4_2,0,Work hard.,C4,achievement-striving
+58,WC4_3,1,Put little time and effort into my work.,C4,achievement-striving
+59,WC4_4,1,Do just enough work to get by.,C4,achievement-striving
+60,WC5_1,0,Am always prepared at work.,C5,self-discipline
+61,WC5_2,0,Carry out my plans at work.,C5,self-discipline
+62,WC5_3,1,Waste my time at work.,C5,self-discipline
+63,WC5_4,1,Have difficulty starting work tasks.,C5,self-discipline
+64,WC6_1,1,Jump into things without thinking in my job.,C6,cautiousness
+65,WC6_2,1,Make rash decisions at work.,C6,cautiousness
+66,WC6_3,1,Rush into things at work.,C6,cautiousness
+67,WC6_4,1,Act without thinking at work.,C6,cautiousness
+68,employment,NA,Selected Choice,NA,NA
+69,employment_5_TEXT,NA,Something else: ,NA,NA
+70,pj_fit_1,1,My current job is not really me,NA,NA
+71,pj_fit_2,1,This job is not really what I would like to be doing,NA,NA
+72,pj_fit_3,0,"All things considered, this job suits me",NA,NA
+73,pj_fit_4,1,I feel like this is not the right type of work for me,NA,NA
+74,pj_fit_5,0,I feel that my goals and needs are met in this job,NA,NA
+75,pj_fit_6,0,I find my current job motivating,NA,NA
+76,pj_fit_7,0,"My abilities, skills, and talents are the right type for this job",NA,NA
+77,pj_fit_8,1,I'm sure there must be another job for which I am better suited,NA,NA
+78,pj_fit_9,0,"I am able to use my talents, skills and competencies in my current job",NA,NA
+79,job_title,NA,What is your job title?,NA,NA
+80,industry,NA,Which of the following best describes the industry you work in?,NA,NA
+81,asrs_1,NA,"How often do you have difficulty concentrating on what people say to you, even when they are speaking to you directly?",NA,NA
+82,asrs_2,NA,How often do you leave your seat in meetings or other situations in which you are expected to remain seated?,NA,NA
+83,asrs_3,NA,How often do you have difficulty unwinding and relaxing when you have time to yourself?,NA,NA
+84,asrs_4,NA,"When you‚Äôre in a conversation, how often do you find yourself finishing the sentences of the people you are talking to before they can finish them themselves?",NA,NA
+85,asrs_5,NA,How often do you put things off until the last minute?,NA,NA
+86,asrs_6,NA,How often do you depend on others to keep your life in order and attend to details?,NA,NA
+87,adhd_yn,NA,Do you have attention-deficit/hyperactivity disorder (ADHD) or attention-deficit disorder (ADD)?,NA,NA
+88,meds,NA,"How often do you take medication (for example, Ritalin, Adderall, Vyvanse, Concerta, Focalin, etc.) to manage your ADHD symptoms at work?",NA,NA
+89,display_order,NA,display_order,NA,NA
+90,took_survey,NA,took_survey,NA,NA
