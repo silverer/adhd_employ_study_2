@@ -1,6 +1,6 @@
 ---
 title: "Big Five Employment Measures and ADHD"
-author: "Elisabeth R Silver"
+author: "Elisabeth R Silver, Mikki Hebl, & Fredrick L. Oswald"
 date: "`r Sys.Date()`"
 output:
   word_document:
@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = F)
 library(pacman)
 p_load(knitr,tidyverse,rstatix,psych,scales,Hmisc,
        statstring,openxlsx,cowplot,afex,lsmeans,flextable,
-       lavaan, semTools, finalfit, ggpubr,
+       lavaan, semTools, finalfit, ggpubr,pwr,
        sjstats, lmerTest,cocor)
 filter <- dplyr::filter
 select <- dplyr::select
@@ -703,10 +703,10 @@ do.pw <- function(longdat, comp.name){
 
 ```{r,warning=F,message=F}
 #consc -----
-analysis.cols <- get_cols %>% 
-  mutate(vnames = str_remove_all(facet.vnames, "work[.]")) %>% 
-  filter(!duplicated(vnames))
-analysis.cols <- analysis.cols$vnames
+analysis.cols <- facet_items %>% 
+  filter(!duplicated(facet.vnames)) %>% 
+  filter(!str_starts(facet.vnames, "work"))
+analysis.cols <- analysis.cols$facet.vnames
 consc.res <- do.pw(long.c, "consc")
 anova_tabs <- consc.res$anova
 pw_result <- consc.res$pw
@@ -860,6 +860,8 @@ write.xlsx(mag.adhd, paste0(output, "group_diffs_cohd.xlsx"))
 
 ```{r}
 ### Option 2: boxplots
+group.colors <- list(Work = "#E57A77",
+                     General ="#3D65A5")
 top.graph <- long.c %>% 
   mutate(frameref=str_to_title(frameref)) %>% 
     ggplot(aes(x=adhd,y=consc))+
