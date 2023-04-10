@@ -11,7 +11,7 @@ output:
 knitr::opts_chunk$set(echo = F)
 library(pacman)
 p_load(knitr,tidyverse,rstatix,psych,scales,Hmisc,
-       statstring,openxlsx,cowplot,afex,lsmeans,flextable,
+       statstring,openxlsx,cowplot,lsmeans,flextable,
        lavaan, semTools, finalfit, ggpubr,pwr,
        sjstats, lmerTest,cocor)
 filter <- dplyr::filter

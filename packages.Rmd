@@ -1,0 +1,27 @@
+---
+title: "Citation Export"
+author: "Elisabeth R Silver"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+bibliography: packages.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(pacman)
+p_load(knitr,tidyverse,rstatix,psych,scales,Hmisc,
+       statstring,openxlsx,cowplot,lsmeans,flextable,
+       lavaan, semTools, finalfit, ggpubr,pwr,
+       sjstats, lmerTest,cocor)
+knitr::write_bib(c("tidyverse","rstatix","psych","scales","Hmisc",
+       "statstring","openxlsx","cowplot","lsmeans","flextable",
+       "lavaan", "semTools", "finalfit", "ggpubr","pwr",
+       "sjstats", "lmerTest","cocor","knitr","pacman"), file = 'packages.bib')
+
+```
+

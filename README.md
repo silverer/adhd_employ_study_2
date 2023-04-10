@@ -16,6 +16,8 @@ In addition, the data files for the sample can be provided via email request to 
 
 3. `calculate_adhd_scores.R` calculates participants' scores on the ADHD symptom severity screener using the propriety scoring algorithm developed by [Ustun and colleagues (2017)](https://doi.org/10.1001/jamapsychiatry.2017.0298). 
 
+4. `packages.Rmd` creates a Bibtex file with all package citations for reporting. 
+
 ## Input files
 
 1. `data/survey_data.csv` contains the original survey data collected from Qualtrics. This is available to researchers upon request. 
