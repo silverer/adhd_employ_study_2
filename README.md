@@ -12,11 +12,13 @@ In addition, the data files for the sample can be provided via email request to 
 
 1. `Power analysis.Rmd` conducts a power analysis to determine the number of participants required for adequate statistical power. Raw outputs are available in the document titled `Power-analysis.docx` and formatted outputs are available in the document titled `ADHD Study 2 Power Analysis.docx`.
 
-2. `Study 2 Cleaning and analysis.Rmd` cleans the survey data and conducts all hypothesis tests and exploratory analyses. The code produces all of the outputs reported in the paper and supplementary materials, which are stored in the `outputs/` subfolder. This script calls `calculate_adhd_scores.R`. To override issues with references to this file, we recommend creating a `calculate_adhd_scores.R` script with a function labelled `get_adhd_sums` that sums responses to the ASRS items. 
+2. `Study 2 Cleaning and analysis.Rmd` cleans the survey data and conducts all hypothesis tests and exploratory analyses. The code produces all of the outputs reported in the paper and supplementary materials, which are stored in the `outputs/` subfolder. This script calls `calculate_adhd_scores.R`. To override issues with references to this file, see point 4 in this section. 
 
 3. `calculate_adhd_scores.R` calculates participants' scores on the ADHD symptom severity screener using the propriety scoring algorithm developed by [Ustun and colleagues (2017)](https://doi.org/10.1001/jamapsychiatry.2017.0298). 
 
-4. `packages.Rmd` creates a Bibtex file with all package citations for reporting. 
+4. `calculate_adhd_scores_public.R` sums participants' scores on the ADHD symptom severity screener without using the proprietary algorithm. To prevent file reference issues, replace `source("calculate_adhd_scores.R")` with `source("calculate_adhd_scores_public.R")`. The results will be similar.
+
+5. `packages.Rmd` creates a Bibtex file with all package citations for reporting. 
 
 ## Input files
 

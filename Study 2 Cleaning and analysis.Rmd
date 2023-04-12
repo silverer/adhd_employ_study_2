@@ -17,6 +17,10 @@ p_load(knitr,tidyverse,rstatix,psych,scales,Hmisc,
 filter <- dplyr::filter
 select <- dplyr::select
 output <- "output/"
+#note-this is in a separate code file hidden from git because the scoring is proprietary
+#to override issues with file references, change the below line to: source("calculate_adhd_scores_public.R")
+source("calculate_adhd_scores.R")
+#calculate_adhd_scores_public.R simply sums the responses to the ADHD symptom questionnaire
 ```
 
 ## Read in and clean data
@@ -157,7 +161,6 @@ df <- df %>%
 df <- df %>% 
   rename_with(~str_remove(str_replace(.x, "asrs", "attn"),"_rc"),
               .cols=(starts_with("asrs")&ends_with("rc")))
-source("calculate_adhd_scores.R")
 df <- get_adhd_sums(df)
 
 asrs_cols <- colnames(df %>% 
