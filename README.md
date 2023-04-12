@@ -8,6 +8,8 @@ Some code and data files are not included in the public-facing repository. Speci
 
 In addition, the data files for the sample can be provided via email request to the corresponding author (Elisabeth Silver, elisabeth.silver[@]rice.edu). The data files are not included here to protect participants' privacy. 
 
+This study was [preregistered](https://osf.io/d69n7).
+
 ## Code files
 
 1. `Power analysis.Rmd` conducts a power analysis to determine the number of participants required for adequate statistical power. Raw outputs are available in the document titled `Power-analysis.docx` and formatted outputs are available in the document titled `ADHD Study 2 Power Analysis.docx`.
