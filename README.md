@@ -16,18 +16,19 @@ This study was [preregistered](https://osf.io/d69n7).
 
 2. `Study 2 Cleaning and analysis.Rmd` cleans the survey data and conducts all hypothesis tests and exploratory analyses. The code produces all of the outputs reported in the paper and supplementary materials, which are stored in the `outputs/` subfolder. This script calls `calculate_adhd_scores.R`. To override issues with references to this file, see point 4 in this section. 
 
-3. `calculate_adhd_scores.R` calculates participants' scores on the ADHD symptom severity screener using the propriety scoring algorithm developed by [Ustun and colleagues (2017)](https://doi.org/10.1001/jamapsychiatry.2017.0298). 
+3. `calculate_adhd_scores.R` calculates participants' scores on the ADHD symptom severity screener using the propriety scoring algorithm developed by [Ustun and colleagues (2017)](https://doi.org/10.1001/jamapsychiatry.2017.0298). Note that this file is not included in the repository to protect the proprietary scoring algorithm.
 
 4. `calculate_adhd_scores_public.R` sums participants' scores on the ADHD symptom severity screener without using the proprietary algorithm. To prevent file reference issues, replace `source("calculate_adhd_scores.R")` with `source("calculate_adhd_scores_public.R")`. The results will be similar.
 
 5. `packages.Rmd` creates a Bibtex file with all package citations for reporting. 
+
+6. `Study 2 Cleaning and analysis--Continuous.Rmd` cleans the survey data and conducts exploratory analyses using continuous ADHD symotom scores instead of categorical self-identified ADHD status as an independent variable. The code produces all of the outputs reported in the paper and supplementary materials, which are stored in the `outputs/` subfolder. This script calls `calculate_adhd_scores.R`. To override issues with references to this file, see point 4 in this section. 
 
 ## Input files
 
 1. `data/survey_data.csv` contains the original survey data collected from Qualtrics. This is available to researchers upon request. 
 
 2. `data/variable_recode.csv` contains the mapping of original item names to clean item names. 
-
 3. `data/facet_names.csv` contains information regarding the facet items and labels.
 
 4. `style-ref.docx` helper file to format R Markdown outputs. 

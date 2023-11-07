@@ -13,7 +13,7 @@ library(pacman)
 p_load(knitr,tidyverse,rstatix,psych,scales,Hmisc,
        statstring,openxlsx,cowplot,lsmeans,flextable,
        lavaan, semTools, finalfit, ggpubr,pwr,
-       sjstats, lmerTest,cocor)
+       sjstats, lmerTest,cocor,afex)
 filter <- dplyr::filter
 select <- dplyr::select
 output <- "output/"
@@ -168,7 +168,7 @@ asrs_cols <- colnames(df %>%
                         select(-attn_na))
 df["na.asrs"] <- rowSums(is.na(df[,asrs_cols]))
 no_screener <- df %>% filter(na.asrs>0)
-cat(paste0(" An additional ", nrow(no_screener), " participant was excluded for failing to answer all of the symptom severity items"))
+cat(paste0(" An additional ", nrow(no_screener), " participant was excluded for failing to answer all of the symptom severity items. "))
 df <- df %>% filter(na.asrs==0)
 # df["race_recode"] <- ifelse(
 #   str_detect(df$race, ","), "multiracial",df$race
@@ -633,12 +633,12 @@ get_cols <- c("consc", "work.consc", get_cols$facet.vnames)
 long.c <- df %>% 
   rename(consc="consc.gen",
          work.consc = "consc.work") %>% 
-  select(all_of(get_cols),display_order_f,ResponseId,adhd) %>% 
+  select(all_of(get_cols),display_order_f,ResponseId,adhd,asrs_sum) %>% 
   pivot_longer(cols = all_of(get_cols)) %>% 
   mutate(frameref = if_else(str_detect(name, "work"),
                             "work", "general"),
          outcome = str_remove_all(name, "work[.]")) %>% 
-  pivot_wider(id_cols = c(ResponseId, adhd, display_order_f,frameref,),
+  pivot_wider(id_cols = c(ResponseId, adhd, display_order_f,asrs_sum,frameref,),
               names_from = outcome,
               values_from = value) 
 
