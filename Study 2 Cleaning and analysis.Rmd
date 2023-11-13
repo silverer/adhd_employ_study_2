@@ -572,8 +572,7 @@ tmp.mod["result"] <- mapply(aov_wrapper, f_stat = tmp.mod$`F`,
              dfn = tmp.mod$num.Df,
              dfd = tmp.mod$den.Df,
              p_val=tmp.mod$Pr..F.,
-             partial_eta=tmp.mod$pes,
-             as_markdown=F)
+             partial_eta=tmp.mod$pes)
 cat(tmp.mod$result[nrow(tmp.mod)])
 cat(" or any of the facets, ")
 threeway.res <- tmp.mod
@@ -591,8 +590,7 @@ for(i in 2:length(get_cols)){
                dfn = tmp.mod$num.Df,
                dfd = tmp.mod$den.Df,
                p_val=tmp.mod$Pr..F.,
-               partial_eta=tmp.mod$pes,
-             as_markdown=F)
+               partial_eta=tmp.mod$pes)
   cat(paste0(pretty_cols[i], ": "))
   tmp.mod["outcome"] <- get_cols[i]
   if(tmp.mod$Pr..F.[nrow(tmp.mod)] >= .05){
@@ -834,6 +832,69 @@ bottom.graph<-ggarrange(plots$self.efficacy,
 save_plot(paste0(output, "facet_comparisons.png"), 
           bottom.graph)
 ```
+
+
+Plot conscientiousness by ADHD and by FOR:
+
+```{r}
+long.df <- long.c %>% 
+  select(adhd, frameref, all_of(analysis.cols), consc) %>% 
+  pivot_longer(cols=all_of(c(analysis.cols, "consc")))
+```
+
+```{r}
+p.adhd <- long.df %>% 
+  mutate(adhd = factor(adhd, levels = c("Non-ADHD", "ADHD")),
+         name = str_replace(name, "consc", "Conscientiousness"),
+         name = str_replace_all(name, "[.]", "-"),
+         name = str_to_title(name)) %>% 
+  ggplot(aes(x=adhd, y = value, group=adhd))+
+  geom_boxplot(aes(colour=adhd), position="dodge2")+
+  facet_wrap(~name)+
+  theme_bw()+
+  theme(panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.grid = element_blank(),
+          text = element_text(family="Times"),
+          axis.text=element_text(size=12),
+          title = element_text(size = 12),
+          legend.title = element_blank(),
+          legend.position ="bottom",
+          legend.text = element_text(size = 12),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 11))+
+  xlab("")+
+  ylab("Score")
+cowplot::save_plot(paste0(output,"adhd_nadhd_comparison.png"), p.adhd)
+```
+
+```{r}
+p.for <- long.df %>% 
+  mutate(frameref = str_to_title(frameref),
+         name = str_replace(name, "consc", "Conscientiousness"),
+         name = str_replace_all(name, "[.]", "-"),
+         name = str_to_title(name)) %>% 
+  ggplot(aes(x=frameref, y = value, group=frameref))+
+  geom_boxplot(aes(colour=frameref), position="dodge2")+
+  facet_wrap(~name)+
+  theme_bw()+
+  theme(panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.grid = element_blank(),
+          text = element_text(family="Times"),
+          axis.text=element_text(size=12),
+          title = element_text(size = 12),
+          legend.title = element_blank(),
+          legend.position ="bottom",
+          legend.text = element_text(size = 12),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 11))+
+  xlab("")+
+  ylab("Score")
+cowplot::save_plot(paste0(output,"work_gen_comparison.png"), p.for)
+```
+
+
 
 ```{r}
 #plot magnitude of pairwise comparisons
