@@ -356,17 +356,33 @@ cat(paste0("There was a significant effect of ADHD self-identification on ADHD s
 tukeyres <- df %>% tukey_hsd(asrs_sum~adhd_yn)
 df["adhd"] <- if_else(df$adhd_yn == "No",
                       "Non-ADHD", "ADHD")
-cat(paste0("\"No\" respondents ( _M_ = ", msd$m[1], ", _SD_ = ", msd$sd[1],
-           ") reported fewer symptoms than \"Yes\" respondents ( _M_ = ",
-           msd$m[3], ", _SD_ = ", msd$sd[3], "), ",
-           format_pval_apa(tukeyres$p.adj[2]), 
-           ", and \"Not sure\" respondents ( _M_ = ",
-           msd$m[2], ", _SD_ = ", msd$sd[2], "), ",
-           format_pval_apa(tukeyres$p.adj[1]), "."))
-cat(paste0("\"Yes\" respondents did not significantly differ ",
-           "from \"Not sure\" respondents, ",
-           format_pval_apa(tukeyres$p.adj[3])))
+# cat(paste0("\"No\" respondents ( _M_ = ", msd$m[1], ", _SD_ = ", msd$sd[1],
+#            ") reported fewer symptoms than \"Yes\" respondents ( _M_ = ",
+#            msd$m[3], ", _SD_ = ", msd$sd[3], "), ",
+#            format_pval_apa(tukeyres$p.adj[2]), 
+#            ", and \"Not sure\" respondents ( _M_ = ",
+#            msd$m[2], ", _SD_ = ", msd$sd[2], "), ",
+#            format_pval_apa(tukeyres$p.adj[1]), "."))
+# cat(paste0("\"Yes\" respondents did not significantly differ ",
+#            "from \"Not sure\" respondents, ",
+#            format_pval_apa(tukeyres$p.adj[3])))
 df$adhd <- factor(df$adhd, levels = c("Non-ADHD", "ADHD"))
+```
+```{r}
+df$adhd.screen <- ifelse(df$adhd_yn=="Yes",
+                         "ADHD",
+                         ifelse(df$adhd_yn=="No",
+                                "Non-ADHD",
+                                ifelse((df$adhd_yn=="Not sure"&df$asrs_sum>=14),
+                                       "ADHD", "Non-ADHD")))
+with(df, table(adhd, adhd.screen))
+#assign new adhd.screen variable to the adhd variable for remaining analyses
+df$adhd <- ifelse(df$adhd_yn=="Yes",
+                         "ADHD",
+                         ifelse(df$adhd_yn=="No",
+                                "Non-ADHD",
+                                ifelse((df$adhd_yn=="Not sure"&df$asrs_sum>=14),
+                                       "ADHD", "Non-ADHD")))
 ```
 
 For the purposes of this analysis, we grouped those who reported “Yes” ( _N_ = `r yes`) and “Not sure” ( _N_ = `r unsure`) into one group and those who reported “No” ( _N_ = `r no`) into another group. 
@@ -390,141 +406,7 @@ cor_vars <- df %>%
 ```
 
 
-```{r,results="asis"}
-format_corrs <- function(data_mat){
-  out = Hmisc::rcorr(as.matrix(data_mat))
-  cors = apply(out$r, 1,FUN=function(x){str_replace(scales::number(x,
-                                                       accuracy=0.01),
-                                                   "0.", ".")})
-  pvals = out$P
-  for(i in 1:nrow(cors)){
-    for(j in 1:ncol(cors)){
-      if(is.na(pvals[i,j])==F){
-        cors[i, j] = paste0(cors[i,j], statstring::format_sig_stars(pvals[i,j]))
-      }
-      
-    }
-  }
-  return(cors)
-}
-#format correlations to make table 1
-cor_outs <- format_corrs(cor_vars)
-cor_outs <- data.frame(cor_outs)
-cor_outs[upper.tri(cor_outs,diag=T)] <- ""
-cor_outs["name"] <- colnames(cor_outs)
-cor_outs <- as_tibble(cor_outs)
 
-#table the means and SDs
-var_means_sds <- cor_vars %>% 
-  summarise(across(everything(),
-                   list(M = ~scales::number(mean(.x, na.rm=T),
-                                                   accuracy=0.01),
-                        SD = ~scales::number(sd(.x, na.rm=T),
-                                                   accuracy = 0.01))
-                   )
-            ) 
-#get means
-var_means_piv <- var_means_sds %>% 
-  select(ends_with("_M")) %>% 
-  pivot_longer(cols=everything()) %>% 
-  rename(M = value) %>% 
-  mutate(name = str_remove(name, "_M"))
-#get SDs
-var_means_piv <- var_means_sds %>% 
-  select(ends_with("_SD")) %>% 
-  pivot_longer(cols=everything()) %>% 
-  rename(SD = value) %>% 
-  mutate(name = str_remove(name, "_SD")) %>% 
-  left_join(var_means_piv, by = "name")
-#join means and SDs with correlations
-var_means_piv <- left_join(var_means_piv, cor_outs, by = "name")
-var_means_piv$name <- str_to_title(var_means_piv$name)#add the variable names as new column
-var_means_piv["name_1"] <- paste0(1:nrow(var_means_piv), ". ",
-                                  var_means_piv$name)
-colnames(var_means_piv) <- c("name", "SD", "M", as.character(1:nrow(var_means_piv)),
-                             "name_1")
-var_means_piv <- var_means_piv %>% 
-  select(name_1, M, SD, all_of(as.character(1:nrow(var_means_piv))),name)
-headerStyle <- createStyle(
-  fontSize = 12, fontName = "Times New Roman", halign = "center",
-  border = "bottom"
-)
-headerStyleIt <- createStyle(
-  fontSize = 12, fontName = "Times New Roman", halign = "center",
-  border = "bottom", textDecoration = 'italic'
-)
-col1HeaderStyle <- createStyle(
-  fontSize = 12, fontName = "Times New Roman",border = "bottom", halign = "left"
-)
-bodyStyle <- createStyle(
-  fontSize = 12, fontName = "Times New Roman", halign = "center"
-)
-col1Style <- createStyle(
-  fontSize = 12, fontName = "Times New Roman", halign = "left"
-)
-itStyle <- createStyle(
-  fontSize = 12, fontName = "Times New Roman", halign='left',
-  textDecoration = 'italic'
-)
-
-saveFmtdReg <- function(regDf, sheetName, fname){
-  wb<-createWorkbook(sheetName)
-  addWorksheet(wb,"sheet1",gridLines = F)
-  writeData(wb,sheet=1,regDf)
-  addStyle(wb,sheet=1,headerStyle, rows=1, cols=c(1,4:ncol(regDf)))
-  addStyle(wb,sheet=1,headerStyleIt, rows=1, cols=c(2,3))
-  addStyle(wb,sheet=1,bodyStyle, 
-           rows=1:nrow(regDf)+1, 
-           cols = 2:ncol(regDf),
-           gridExpand = T)
-  addStyle(wb, sheet = 1, col1HeaderStyle,
-           rows = 1, cols = 1)
-  addStyle(wb,sheet=1,col1Style, 
-           rows=1:nrow(regDf)+1, 
-           cols=1)
-  saveWorkbook(wb, paste0(fname, ".xlsx"), overwrite=T)
-}
-
-saveFmtdReg(var_means_piv,"tab1", paste0(output, "table1"))
-tmp.varmeans <- var_means_piv %>% 
-  mutate(across(everything(),
-                ~str_replace_all(.x, "[*]", "")),
-         name_1 = str_replace_all(name_1,"Work[.]", "Work "),
-         name_1 = str_remove(name_1, "\\d{1,2}[.]"),
-         name_1 = str_replace(name_1, "[.]", "-"))
-tmp.varmeans$name_1 <- paste0(1:nrow(tmp.varmeans), ".",
-                                  tmp.varmeans$name_1)
-saveFmtdReg(tmp.varmeans,"tab1", paste0(output, "siop_table1"))
-cor_vals <- Hmisc::rcorr(as.matrix(cor_vars))
-rs <- data.frame(r = cor_vals$r[1,])
-rs["name"] <- rownames(rs)
-ps <- data.frame(p = cor_vals$P[1,])
-ps["name"] <- rownames(ps)
-ns <- data.frame(n = cor_vals$n[1,])
-ns["name"] <- rownames(ns)
-rpn <- left_join(rs, ps, by = "name")
-rpn <- left_join(rpn, ns, by = "name")
-name_order <- str_replace_all(facet_items$facet_name[!duplicated(facet_items$facet_name)][1:6],
-                              "[-]", ".")
-for(i in 1:length(name_order)){
-  tmp <- rpn %>% 
-    filter(str_detect(str_to_lower(name), name_order[i]))
-  
-  cat(
-    paste0("ADHD symptom severity was negatively correlated with both general ",
-           name_order[i],  
-           ", ",
-           format_corr_apa(tmp$r[1],tmp$n[1]-2,tmp$p[1]),
-           " and work ",
-           name_order[i],
-           ", ",
-           format_corr_apa(tmp$r[2],tmp$n[2]-2,tmp$p[2]))
-  )
-  cat(".  \n")
-}
-
-
-```
 
 ## Check for three-way interaction with presentation order
 
@@ -615,7 +497,7 @@ threeway.wide <- threeway.wide %>%
 threeway.wide <- threeway.wide %>% 
   mutate(across(all_of(get_cols),
          ~str_replace(.x, "~partial~ [$]\\\\eta[^2$]2[$]", "pes")))
-write.csv(threeway.wide, paste0(output, "3way_inrxn_pres_order.csv"))
+write.csv(threeway.wide, paste0(output, "screen_3way_inrxn_pres_order.csv"))
 ```
 
 
@@ -711,6 +593,7 @@ analysis.cols <- analysis.cols$facet.vnames
 consc.res <- do.pw(long.c, "consc")
 anova_tabs <- consc.res$anova
 pw_result <- consc.res$pw
+
 for(i in 1:length(analysis.cols)){
   tmp.res <- do.pw(long.c, analysis.cols[i])
   anova_tabs <- rbind(anova_tabs, tmp.res$anova)
@@ -740,7 +623,7 @@ pw_piv <- pw_condense %>%
               values_from=tstat,
               id_cols=contrast) 
 
-write.xlsx(pw_piv, paste0(output, "rstatix_pairwise_results.xlsx"))
+write.xlsx(pw_piv, paste0(output, "screen_rstatix_pairwise_results.xlsx"))
 
 anova_tabs["stat"] <- number(anova_tabs$`F`, accuracy = .01)
 anova_tabs["stars"] <- sapply(anova_tabs$p, format_sig_stars)
@@ -755,7 +638,7 @@ anova_wide <- anova_tabs %>%
   pivot_wider(id_cols = Effect,
               names_from=outcome,
               values_from = stat2)
-write.xlsx(anova_wide, paste0(output, "rstatix_results.xlsx"))
+write.xlsx(anova_wide, paste0(output, "screen_rstatix_results.xlsx"))
 ```
 
 ### SIOP Plots
@@ -831,115 +714,6 @@ bottom.graph<-ggarrange(plots$self.efficacy,
 save_plot(paste0(output, "facet_comparisons.png"), 
           bottom.graph)
 ```
-
-
-Plot conscientiousness by ADHD and by FOR:
-
-
-```{r}
-mod.list <- list()
-analysis.cols.tmp <- c("consc", analysis.cols)
-for(i in 1:length(analysis.cols.tmp)){
-  rename.tmp <- list(outcome.var = analysis.cols.tmp[i])
-  tmp <- long.c %>% 
-    rename(!!!rename.tmp)
-  mod <- lmer(outcome.var ~ adhd*frameref+(1|ResponseId),data=tmp)
-  mod.list[[analysis.cols.tmp[i]]] <- emmeans(mod, specs=c("adhd", "frameref"))
-  if(i == 1){
-    em.df <- data.frame(emmeans(mod, c("adhd", "frameref")))
-    em.df["outcome"] <- analysis.cols.tmp[i]
-  }else{
-    tmp.em <- data.frame(emmeans(mod, c("adhd", "frameref")))
-    tmp.em["outcome"] <- analysis.cols.tmp[i]
-    em.df <- rbind(em.df, tmp.em)
-  }
-}
-p.all <- em.df %>% 
-  mutate(frameref = if_else(frameref=="work", "Work", "General"),
-         outcome = str_replace_all(outcome, "consc", "Conscientiousness"),
-         outcome = str_replace_all(outcome, "[.]", "-"),
-         outcome = str_to_title(outcome),
-         adhd = factor(adhd, levels = c("Non-ADHD", "ADHD")),
-         outcome = factor(outcome),
-         outcome = relevel(outcome, ref="Conscientiousness")) %>% 
-  ggplot(aes(x=frameref, y = emmean, group=adhd))+
-  geom_point(aes(colour=adhd))+
-  geom_line(aes(colour=adhd,linetype=adhd))+
-  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL,colour=adhd,width=.2,linetype=adhd))+
-  ylim(bottom=2.5,top=5)+
-  ylab("Est. Mean")+
-  facet_wrap(~outcome)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid = element_blank(),
-          text = element_text(family="Times"),
-          axis.text=element_text(size=12),
-          title = element_text(size = 12),
-          legend.title = element_blank(),
-          legend.position ="bottom",
-          legend.text = element_text(size = 12),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 11))
-p.all
-cowplot::save_plot("jobtalk_plots_study2.png",p.all,dpi=400)
-```
-
-
-
-```{r}
-p.adhd <- long.df %>% 
-  mutate(adhd = factor(adhd, levels = c("Non-ADHD", "ADHD")),
-         name = str_replace(name, "consc", "Conscientiousness"),
-         name = str_replace_all(name, "[.]", "-"),
-         name = str_to_title(name)) %>% 
-  ggplot(aes(x=adhd, y = value, group=adhd))+
-  geom_boxplot(aes(colour=adhd), position="dodge2")+
-  facet_wrap(~name)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid = element_blank(),
-          text = element_text(family="Times"),
-          axis.text=element_text(size=12),
-          title = element_text(size = 12),
-          legend.title = element_blank(),
-          legend.position ="bottom",
-          legend.text = element_text(size = 12),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 11))+
-  xlab("")+
-  ylab("Score")
-cowplot::save_plot(paste0(output,"adhd_nadhd_comparison.png"), p.adhd)
-```
-
-```{r}
-p.for <- long.df %>% 
-  mutate(frameref = str_to_title(frameref),
-         name = str_replace(name, "consc", "Conscientiousness"),
-         name = str_replace_all(name, "[.]", "-"),
-         name = str_to_title(name)) %>% 
-  ggplot(aes(x=frameref, y = value, group=frameref))+
-  geom_boxplot(aes(colour=frameref), position="dodge2")+
-  facet_wrap(~name)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid = element_blank(),
-          text = element_text(family="Times"),
-          axis.text=element_text(size=12),
-          title = element_text(size = 12),
-          legend.title = element_blank(),
-          legend.position ="bottom",
-          legend.text = element_text(size = 12),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 11))+
-  xlab("")+
-  ylab("Score")
-cowplot::save_plot(paste0(output,"work_gen_comparison.png"), p.for)
-```
-
-
 
 ```{r}
 #plot magnitude of pairwise comparisons

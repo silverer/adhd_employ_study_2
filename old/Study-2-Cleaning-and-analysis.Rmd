@@ -572,7 +572,8 @@ tmp.mod["result"] <- mapply(aov_wrapper, f_stat = tmp.mod$`F`,
              dfn = tmp.mod$num.Df,
              dfd = tmp.mod$den.Df,
              p_val=tmp.mod$Pr..F.,
-             partial_eta=tmp.mod$pes)
+             partial_eta=tmp.mod$pes,
+             as_markdown=F)
 cat(tmp.mod$result[nrow(tmp.mod)])
 cat(" or any of the facets, ")
 threeway.res <- tmp.mod
@@ -590,7 +591,8 @@ for(i in 2:length(get_cols)){
                dfn = tmp.mod$num.Df,
                dfd = tmp.mod$den.Df,
                p_val=tmp.mod$Pr..F.,
-               partial_eta=tmp.mod$pes)
+               partial_eta=tmp.mod$pes,
+             as_markdown=F)
   cat(paste0(pretty_cols[i], ": "))
   tmp.mod["outcome"] <- get_cols[i]
   if(tmp.mod$Pr..F.[nrow(tmp.mod)] >= .05){
@@ -711,6 +713,7 @@ analysis.cols <- analysis.cols$facet.vnames
 consc.res <- do.pw(long.c, "consc")
 anova_tabs <- consc.res$anova
 pw_result <- consc.res$pw
+
 for(i in 1:length(analysis.cols)){
   tmp.res <- do.pw(long.c, analysis.cols[i])
   anova_tabs <- rbind(anova_tabs, tmp.res$anova)
@@ -831,115 +834,6 @@ bottom.graph<-ggarrange(plots$self.efficacy,
 save_plot(paste0(output, "facet_comparisons.png"), 
           bottom.graph)
 ```
-
-
-Plot conscientiousness by ADHD and by FOR:
-
-
-```{r}
-mod.list <- list()
-analysis.cols.tmp <- c("consc", analysis.cols)
-for(i in 1:length(analysis.cols.tmp)){
-  rename.tmp <- list(outcome.var = analysis.cols.tmp[i])
-  tmp <- long.c %>% 
-    rename(!!!rename.tmp)
-  mod <- lmer(outcome.var ~ adhd*frameref+(1|ResponseId),data=tmp)
-  mod.list[[analysis.cols.tmp[i]]] <- emmeans(mod, specs=c("adhd", "frameref"))
-  if(i == 1){
-    em.df <- data.frame(emmeans(mod, c("adhd", "frameref")))
-    em.df["outcome"] <- analysis.cols.tmp[i]
-  }else{
-    tmp.em <- data.frame(emmeans(mod, c("adhd", "frameref")))
-    tmp.em["outcome"] <- analysis.cols.tmp[i]
-    em.df <- rbind(em.df, tmp.em)
-  }
-}
-p.all <- em.df %>% 
-  mutate(frameref = if_else(frameref=="work", "Work", "General"),
-         outcome = str_replace_all(outcome, "consc", "Conscientiousness"),
-         outcome = str_replace_all(outcome, "[.]", "-"),
-         outcome = str_to_title(outcome),
-         adhd = factor(adhd, levels = c("Non-ADHD", "ADHD")),
-         outcome = factor(outcome),
-         outcome = relevel(outcome, ref="Conscientiousness")) %>% 
-  ggplot(aes(x=frameref, y = emmean, group=adhd))+
-  geom_point(aes(colour=adhd))+
-  geom_line(aes(colour=adhd,linetype=adhd))+
-  geom_errorbar(aes(ymin=lower.CL,ymax=upper.CL,colour=adhd,width=.2,linetype=adhd))+
-  ylim(bottom=2.5,top=5)+
-  ylab("Est. Mean")+
-  facet_wrap(~outcome)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid = element_blank(),
-          text = element_text(family="Times"),
-          axis.text=element_text(size=12),
-          title = element_text(size = 12),
-          legend.title = element_blank(),
-          legend.position ="bottom",
-          legend.text = element_text(size = 12),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 11))
-p.all
-cowplot::save_plot("jobtalk_plots_study2.png",p.all,dpi=400)
-```
-
-
-
-```{r}
-p.adhd <- long.df %>% 
-  mutate(adhd = factor(adhd, levels = c("Non-ADHD", "ADHD")),
-         name = str_replace(name, "consc", "Conscientiousness"),
-         name = str_replace_all(name, "[.]", "-"),
-         name = str_to_title(name)) %>% 
-  ggplot(aes(x=adhd, y = value, group=adhd))+
-  geom_boxplot(aes(colour=adhd), position="dodge2")+
-  facet_wrap(~name)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid = element_blank(),
-          text = element_text(family="Times"),
-          axis.text=element_text(size=12),
-          title = element_text(size = 12),
-          legend.title = element_blank(),
-          legend.position ="bottom",
-          legend.text = element_text(size = 12),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 11))+
-  xlab("")+
-  ylab("Score")
-cowplot::save_plot(paste0(output,"adhd_nadhd_comparison.png"), p.adhd)
-```
-
-```{r}
-p.for <- long.df %>% 
-  mutate(frameref = str_to_title(frameref),
-         name = str_replace(name, "consc", "Conscientiousness"),
-         name = str_replace_all(name, "[.]", "-"),
-         name = str_to_title(name)) %>% 
-  ggplot(aes(x=frameref, y = value, group=frameref))+
-  geom_boxplot(aes(colour=frameref), position="dodge2")+
-  facet_wrap(~name)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid = element_blank(),
-          text = element_text(family="Times"),
-          axis.text=element_text(size=12),
-          title = element_text(size = 12),
-          legend.title = element_blank(),
-          legend.position ="bottom",
-          legend.text = element_text(size = 12),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 11))+
-  xlab("")+
-  ylab("Score")
-cowplot::save_plot(paste0(output,"work_gen_comparison.png"), p.for)
-```
-
-
 
 ```{r}
 #plot magnitude of pairwise comparisons

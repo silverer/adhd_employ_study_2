@@ -24,6 +24,8 @@ This study was [preregistered](https://osf.io/d69n7).
 
 6. `Study 2 Cleaning and analysis--Continuous.Rmd` cleans the survey data and conducts exploratory analyses using continuous ADHD symotom scores instead of categorical self-identified ADHD status as an independent variable. The code produces all of the outputs reported in the paper and supplementary materials, which are stored in the `outputs/` subfolder. This script calls `calculate_adhd_scores.R`. To override issues with references to this file, see point 4 in this section. 
 
+7. `Study-2-Cleaning-and-analysis-Cutscores.Rmd` cleans the survey data and conducts exploratory analyses using a different method of allocating participants into ADHD and non-ADHD groups. The code produces all of the outputs reported in the supplementary materials, which are stored in the `outputs/` subfolder. This script calls `calculate_adhd_scores.R`. To override issues with references to this file, see point 4 in this section. 
+
 ## Input files
 
 1. `data/survey_data.csv` contains the original survey data collected from Qualtrics. This is available to researchers upon request. 

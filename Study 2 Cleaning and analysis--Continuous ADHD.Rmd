@@ -756,7 +756,8 @@ p<-slope.res %>%
           legend.position ="bottom",
           legend.text = element_text(size = 12),
           strip.text.x = element_text(size = 12))
-cowplot::save_plot(paste0(output,"continuous_comparisons.png"),p,dpi=200)
+cowplot::save_plot(paste0(output,"continuous_comparisons.png"),p,dpi=400)
 ```
+
 
 
