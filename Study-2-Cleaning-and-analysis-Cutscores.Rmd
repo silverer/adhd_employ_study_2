@@ -315,25 +315,6 @@ unsure <- nrow(df %>% filter(adhd_yn=="Not sure"))
 ```
 
 
-```{r,warning=F,message=F}
-p<-ggplot(df, aes(asrs_sum,fill=adhd_yn))+
-  geom_histogram(position="dodge",bins=10,colour="black")+
-  theme_bw()+
-  xlab("ADHD Symptom Severity")+
-  ylab("Frequency")+
-  ggtitle("Study 2: ADHD Symptom Severity by Self-ID")+
-  labs(fill = "ADHD Self-ID")+
-  theme(panel.grid.major=element_blank(),
-        panel.grid.minor=element_blank())+
-  theme(text=element_text(family="Times New Roman",size=12),
-        axis.text.x = element_text(size=12),
-        axis.text.y = element_text(size=12),
-        legend.text = element_text(size=12))
-print(p)
-save_plot("adhd_sx_screener.png", p)
-
-```
-
 ```{r,results='asis',warning=F,message=F}
 msd <- df %>% 
   group_by(adhd_yn) %>% 
@@ -368,6 +349,9 @@ df["adhd"] <- if_else(df$adhd_yn == "No",
 #            format_pval_apa(tukeyres$p.adj[3])))
 df$adhd <- factor(df$adhd, levels = c("Non-ADHD", "ADHD"))
 ```
+
+Create ADHD grouping variable based on both self-identification and clinical cut scores:
+
 ```{r}
 df$adhd.screen <- ifelse(df$adhd_yn=="Yes",
                          "ADHD",
@@ -385,7 +369,7 @@ df$adhd <- ifelse(df$adhd_yn=="Yes",
                                        "ADHD", "Non-ADHD")))
 ```
 
-For the purposes of this analysis, we grouped those who reported “Yes” ( _N_ = `r yes`) and “Not sure” ( _N_ = `r unsure`) into one group and those who reported “No” ( _N_ = `r no`) into another group. 
+
 
 ## Big five traits
 
