@@ -886,6 +886,8 @@ p.all <- em.df %>%
 p.all
 cowplot::save_plot(paste0(output,"jobtalk_plots_study2.png"),p.all,dpi=400)
 ```
+
+Plot in black and white
 ```{r}
 p.bw <- em.df %>% 
   filter(outcome %in% c("consc",'self.efficacy','self.discipline','orderliness')) %>% 
